@@ -1,0 +1,375 @@
+meta:
+  pack: backend-go
+  description: >
+    Go + hexagonal-architecture rules that survive any Go shop. Tool-specific
+    conventions (ORM, parser, test helpers) live in an org profile, not here.
+  language: en
+
+rules:
+  - id: go-no-passthrough-service
+    topic: Architecture
+    severity: nit
+    lintable: false
+    sources: [be-001]
+    principle: >
+      Don't add a service method that only forwards to the repository. Call the
+      repository directly from the controller.
+    wrong:
+      description: Service method that adds nothing over the repo call.
+      code: |
+        func (s *Service) GetUser(ctx context.Context, id int) (User, error) {
+          return s.repo.GetUser(ctx, id)
+        }
+    right:
+      description: Controller calls the repository directly.
+      code: |
+        user, err := r.repo.GetUser(ctx, id)
+    reason: A layer that only delegates adds complexity without value.
+
+  - id: go-adapters-return-domain-errors
+    topic: Architecture
+    severity: blocker
+    lintable: false
+    sources: [be-002, be-009]
+    principle: >
+      Adapters translate external/library errors into domain errors. Callers must not
+      need to know adapter-specific error types.
+    wrong:
+      description: Leak a library-specific error out of the adapter.
+      code: |
+        return cloudstorage.ErrFileNotFound
+    right:
+      description: Return a domain error (constructor name is org-specific).
+      code: |
+        return domain.NotFoundErr("file not found", nil)
+    reason: >
+      The whole point of an adapter is to translate external complexity into the
+      domain language, so the controller can propagate errors without knowing internals.
+
+  - id: go-no-dto-for-few-values
+    topic: Architecture
+    severity: nit
+    lintable: false
+    sources: [be-003]
+    principle: Don't create a struct just to return a couple of values.
+    wrong:
+      description: A result struct for two fields.
+      code: |
+        type Result struct { ID int; Version int }
+    right:
+      description: Use multiple returns, or mutate via pointer.
+      code: |
+        func CreateDocument(ctx context.Context, db DB, doc *Document) error {
+          // sets doc.ID and doc.VersionID directly
+        }
+    reason: A throwaway DTO for a few values adds a type to maintain for no gain.
+
+  - id: go-no-stuttering
+    topic: Naming
+    severity: nit
+    lintable: true
+    sources: [be-004]
+    principle: Don't repeat the package name in its members.
+    wrong:
+      description: Member name repeats the package.
+      code: |
+        cache.CacheSet()
+        cache.CacheGet()
+    right:
+      description: Drop the redundant prefix.
+      code: |
+        cache.Set()
+        cache.Get()
+    reason: The package qualifier already carries that information.
+
+  - id: go-local-vars-lowercase
+    topic: Naming
+    severity: nit
+    lintable: true
+    sources: [be-006]
+    principle: Local variables start lowercase to distinguish them from exported/global names.
+    wrong:
+      description: Local var capitalized like a type.
+      code: |
+        Firm := tt.Fake[Firm](t, customValues)
+    right:
+      description: Lowercase local var.
+      code: |
+        firm := tt.Fake[Firm](t, customValues)
+    reason: Capitalized locals read as exported identifiers and confuse the reader.
+
+  - id: go-json-camelcase
+    topic: API
+    severity: nit
+    lintable: true
+    sources: [be-007]
+    principle: JSON tags use camelCase.
+    wrong:
+      code: |
+        FirmID int `json:"FirmID"`
+    right:
+      code: |
+        FirmID int `json:"firmId"`
+    reason: camelCase is the JSON convention consumers expect.
+
+  - id: go-query-params-hyphen
+    topic: API
+    severity: nit
+    lintable: true
+    sources: [be-015]
+    principle: Query params use hyphens, not underscores.
+    wrong:
+      code: |
+        c.Query("content_md5")
+    right:
+      code: |
+        c.Query("content-md5")
+    reason: Hyphenated query keys are the HTTP convention.
+
+  - id: go-jwt-standard-claims
+    topic: API
+    severity: nit
+    lintable: false
+    sources: [be-016]
+    principle: Use standard short JWT claim names (exp, iat, sub).
+    wrong:
+      code: |
+        ExpiresAt int64 `json:"expiresAt"`
+    right:
+      code: |
+        ExpiresAt int64 `json:"exp"`
+    reason: JWT claims are sent on every request; standard short names are expected.
+
+  - id: go-no-redundant-error-checks
+    topic: Errors
+    severity: nit
+    lintable: false
+    sources: [be-008]
+    principle: Trust the returned error; don't re-check conditions it already covers.
+    wrong:
+      code: |
+        if user.ID == "" { return errors.New("user not found") }
+        if err != nil { return err }
+    right:
+      code: |
+        if err != nil { return err } // already a NotFound error if missing
+    reason: The error already carries the information; the extra check is dead weight.
+
+  - id: go-wrap-errors-not-stringify
+    topic: Errors
+    severity: nit
+    lintable: false
+    sources: [be-032]
+    principle: Pass errors through unchanged so the parent can wrap them; don't call .Error() early.
+    wrong:
+      code: |
+        return InternalErr("failed to create", map[string]any{"error": err.Error()})
+    right:
+      code: |
+        return InternalErr("failed to create", map[string]any{"error": err})
+    reason: Passing the error allows wrapping/unwrapping and is less verbose.
+
+  - id: go-return-domain-entities
+    topic: Architecture
+    severity: nit
+    lintable: false
+    sources: [be-022]
+    principle: >
+      Repository functions return full domain entities, not single scalar fields.
+    wrong:
+      description: Function returns one column.
+      code: |
+        func GetDocumentVersionUploadID(...) (string, error)
+    right:
+      description: Return the entity; callers take what they need.
+      code: |
+        func GetDocumentVersion(...) (Document, error)
+    reason: >
+      Single-field accessors multiply and resist reuse. Returning the entity also lets
+      one query validate ownership (firm, diligence) at the same time.
+
+  - id: go-inject-repo-not-db
+    topic: Architecture
+    severity: blocker
+    lintable: false
+    sources: [be-029]
+    principle: Inject the repository into controllers, not the raw DB handle.
+    wrong:
+      code: |
+        type FirmsController struct { db DB }
+    right:
+      code: |
+        type FirmsController struct { repo *Repo }
+    reason: Injecting the repo keeps separation of responsibilities and eases testing.
+
+  - id: go-no-double-injection
+    topic: Architecture
+    severity: nit
+    lintable: false
+    sources: [be-019]
+    principle: Inject each resource exactly one way.
+    wrong:
+      code: |
+        type Controller struct {
+          cacheService CacheService
+          cache        Cache // same resource, second path
+        }
+    right:
+      code: |
+        type Controller struct { cacheService CacheService }
+    reason: Two access paths to one resource invite inconsistency.
+
+  - id: go-convert-types-at-boundaries
+    topic: Architecture
+    severity: nit
+    lintable: false
+    sources: [be-031]
+    principle: >
+      Convert to domain types inside the adapter. Type conversion in the middle of
+      business logic signals the adapter returned the wrong type.
+    wrong:
+      code: |
+        role, _ := repo.GetUserRoleInFirm(ctx, firmId, userId) // returns string
+        if role != string(FirmRoleAdmin) { ... }               // conversion mid-logic
+    right:
+      code: |
+        role, _ := repo.GetUserRoleInFirm(ctx, firmId, userId) // returns FirmRole
+        if role != FirmRoleAdmin { ... }
+    reason: Boundaries own conversion; the rest of the code works in domain types.
+
+  - id: go-validate-method-on-entity
+    topic: Validation
+    severity: blocker
+    lintable: false
+    sources: [be-034]
+    principle: >
+      Entity validation is a Validate() method on the entity, called after converting a
+      DTO to the entity — not inline in the controller.
+    wrong:
+      code: |
+        for i, p := range payload.Parties {
+          if p.CanonicalID == "" { return BadRequestErr("canonicalId required", nil) }
+        }
+    right:
+      code: |
+        func (p Party) Validate() error {
+          if p.CanonicalID == "" { return BadRequestErr("canonicalId required", nil) }
+          return nil
+        }
+        // controller, after DTO -> entity:
+        if err := parties[i].Validate(); err != nil { return err }
+    reason: Centralizes validation, avoids duplication across controllers, eases unit testing.
+
+  - id: go-validate-repo-inputs
+    topic: Validation
+    severity: nit
+    lintable: false
+    sources: [be-037]
+    principle: >
+      Repositories/adapters validate their own inputs; don't assume the controller did.
+    wrong:
+      code: |
+        func (c *Repo) ListDiligences(ctx, filter Filter) ([]Diligence, error) {
+          // uses filter.FirmID directly; firmID 0 silently returns nothing
+        }
+    right:
+      code: |
+        if filter.FirmID <= 0 { return nil, BadRequestErr("firmID must be positive", nil) }
+    reason: >
+      The repo may be reused by other routes. Validating here gives a clear error
+      instead of a silent empty result or a confusing DB error.
+
+  - id: go-integrity-checks-in-repo
+    topic: Architecture
+    severity: blocker
+    lintable: false
+    sources: [be-040]
+    principle: Data-integrity rules belong in the repository, not the controller.
+    wrong:
+      code: |
+        // controller
+        if memberID == firm.OwnerID { return BadRequestErr("cannot remove owner", nil) }
+        return f.repo.RemoveFirmMember(ctx, firmID, memberID)
+    right:
+      code: |
+        // repository RemoveFirmMember
+        if userID == firm.OwnerID { return BadRequestErr("cannot remove owner", nil) }
+        // then DELETE
+    reason: >
+      In the controller another caller can bypass the check and corrupt the DB. In the
+      repo the protection is reusable and impossible to skip.
+
+  - id: go-dtos-near-their-interface
+    topic: Architecture
+    severity: nit
+    lintable: false
+    sources: [be-036]
+    principle: >
+      A DTO used by a single port/interface is declared with that interface (e.g. the
+      contracts file), not buried in an adapter implementation.
+    reason: >
+      DTOs are part of the interface contract. Separating them hurts readability and
+      can cause import cycles or force the method out of the interface.
+
+  - id: go-wrapper-near-delegate
+    topic: Organization
+    severity: nit
+    lintable: false
+    sources: [be-039]
+    principle: A method that only delegates to a function sits immediately above that function.
+    reason: Keeping the wrapper next to its delegate makes the relationship obvious.
+
+  - id: go-modify-struct-in-place
+    topic: Simplicity
+    severity: nit
+    lintable: false
+    sources: [be-035]
+    principle: >
+      Mutate the original struct directly instead of building a temp and copying fields
+      back.
+    wrong:
+      code: |
+        party := Party{FirmID: d.FirmID, Kind: dp.Kind}
+        db.Insert(ctx, PartiesTable, &party)
+        d.Parties[i].ID = party.ID
+        d.Parties[i].FirmID = party.FirmID
+    right:
+      code: |
+        d.Parties[i].FirmID = d.FirmID
+        db.Insert(ctx, PartiesTable, &d.Parties[i].Party)
+    reason: Copying fields back is error-prone; mutate in place and you can't forget one.
+
+  - id: go-time-json-default-format
+    topic: API
+    severity: nit
+    lintable: false
+    sources: [be-038]
+    principle: Let the JSON encoder format time values; don't format them by hand.
+    wrong:
+      code: |
+        "createdAt": dig.CreatedAt.Format(time.RFC3339Nano)
+    right:
+      code: |
+        "createdAt": dig.CreatedAt
+    reason: encoding/json already emits RFC3339; manual formatting risks inconsistency.
+
+  - id: go-no-model-fragmentation
+    topic: Modeling
+    severity: blocker
+    lintable: false
+    sources: [be-041]
+    principle: >
+      Don't create a struct with the same fields as an existing entity. Add the missing
+      field to the entity (with omitempty if situational).
+    wrong:
+      code: |
+        type FirmUserRow struct { ID int; Name string; Email string; Role string }
+    right:
+      code: |
+        type User struct {
+          ID int; Name string; Email string
+          Role FirmRole `json:"role,omitempty"`
+        }
+    reason: >
+      Parallel structs fragment the domain model. This is the Go-concrete form of
+      u-reuse-before-adding and u-one-source-of-truth.

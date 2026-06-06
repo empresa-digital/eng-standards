@@ -1,0 +1,232 @@
+meta:
+  pack: universal
+  description: Principles that bind to no language, tool, or company. Travel anywhere.
+  language: en
+
+rules:
+  - id: u-simplicity-over-complexity
+    topic: Simplicity
+    severity: blocker
+    lintable: false
+    sources: [ge-001]
+    principle: Choose the simplest solution that solves the problem.
+    reason: >
+      Complexity is the default cost of every line. Simpler code is cheaper to read,
+      test, and change. Most over-engineering in AI output comes from solving problems
+      that were never posed.
+
+  - id: u-reuse-before-adding
+    topic: Reuse
+    severity: blocker
+    lintable: false
+    sources: [be-001, be-003, be-022, be-041, te-004, "agent-improvements#1,6,16,25,29,30,36,37,40"]
+    principle: >
+      Before creating a new type, method, mock, adapter, or helper, prove no existing
+      one already expresses it.
+    wrong:
+      description: Add a new struct/method that mirrors something that already exists.
+      code: |
+        // existing: User{ID, Name, Email}
+        type UserRow struct { ID int; Name string; Email string }  // duplicate shape
+    right:
+      description: Extend or reuse the existing type; add the missing field if needed.
+      code: |
+        type User struct {
+          ID    int
+          Name  string
+          Email string
+          Role  Role `json:"role,omitempty"` // additive, optional
+        }
+    reason: >
+      The single most frequent AI failure across two engineers' review logs is adding
+      a parallel thing instead of checking for an existing one. New entities/methods
+      fragment the model and multiply the maintenance surface.
+    solution: >
+      Search the codebase for an existing entity, filter, mock, or contract first.
+      Adding is justified only when nothing existing fits and forcing a fit would be
+      worse.
+
+  - id: u-one-source-of-truth
+    topic: Modeling
+    severity: blocker
+    lintable: false
+    sources: [be-041, te-004, "agent-improvements#12,31,33"]
+    principle: >
+      Each concept has exactly one source of truth. Do not fragment a model or
+      duplicate the same fields across tables/types.
+    reason: >
+      When two tables or types hold the same concept, they drift and every write must
+      keep them in sync. Decide which one owns each fact; reference it from the other.
+    solution: >
+      For overlapping tables, state which is the source of truth for each field before
+      finalizing the schema. Separate current-state tables from immutable audit/event
+      tables explicitly.
+
+  - id: u-translate-at-external-boundaries
+    topic: Boundaries
+    severity: blocker
+    lintable: false
+    sources: [be-036, fe-027, fe-028, "agent-improvements#16,17"]
+    principle: >
+      Reuse domain entities freely WITHIN the bounded context (services, adapters, and
+      the DB schema when we own the DB and shape it to match the entities). Translate
+      only when crossing OUT to clients or external services.
+    wrong:
+      description: Return an internal entity straight to an external client.
+      code: |
+        // controller
+        return c.JSON(entity) // leaks internal/audit fields outward
+    right:
+      description: Map to a minimal external shape at the outermost boundary only.
+      code: |
+        return c.JSON(toPublicResponse(entity)) // only fields the client needs
+    reason: >
+      Internal reuse simplifies code and avoids needless DTOs; external translation
+      protects callers from internal churn and prevents leaking implementation detail.
+      The boundary that matters is external, not every layer. Owning the DB and shaping
+      it to the entities (not the reverse) is a large simplifier.
+
+  - id: u-domain-invariants-in-domain-layer
+    topic: Architecture
+    severity: blocker
+    lintable: false
+    sources: [be-034, be-037, be-040, "agent-improvements#11,30,39"]
+    principle: >
+      Business invariants live in the domain layer — as an entity method or a pure
+      function — never in storage, transport, or handler code.
+    reason: >
+      Validation placed in a repository or controller can be bypassed by another
+      caller. In the domain layer it is reusable and impossible to skip. Not every
+      rule has an obvious owning entity; a pure domain function is fine then.
+
+  - id: u-no-defensive-code-for-impossible-states
+    topic: Simplicity
+    severity: nit
+    lintable: false
+    sources: [ge-002, be-008, fe-004, fe-005]
+    principle: Do not handle errors or states that cannot occur.
+    wrong:
+      description: Guard a value the caller already guarantees, or re-wrap an error unchanged.
+      code: |
+        result, err := fetch()
+        if err != nil { return err }
+        if result == nil { return errors.New("not found") } // err already covered this
+    right:
+      description: Trust the contract; let the meaningful error propagate.
+      code: |
+        result, err := fetch()
+        if err != nil { return err }
+    reason: >
+      Defensive code for impossible states adds noise, hides the real control flow,
+      and implies failure modes that don't exist.
+
+  - id: u-no-dead-scaffolding
+    topic: Cleanliness
+    severity: nit
+    lintable: false
+    sources: [ge-005, "agent-improvements#22,28,29,35"]
+    principle: >
+      Leave nothing behind: no premature columns/fields, no stale dependency injection,
+      no single-use helpers/vars, no code that cannot be fully populated yet.
+    reason: >
+      Dead scaffolding reads as intentional and sends future readers hunting for uses
+      that don't exist. Add a field/column only when the full data path can populate
+      it; after a refactor, remove injected deps that no longer abstract a variation.
+
+  - id: u-follow-local-convention
+    topic: Consistency
+    severity: blocker
+    lintable: false
+    sources: [ge-004, "agent-improvements#6,7,15,25,27,40"]
+    principle: >
+      Inspect and follow the patterns already established in the project before
+      inventing a new one (test command, helpers, pagination, naming, mocks).
+    reason: >
+      Consistency is worth more than any individual preference. A locally-novel pattern
+      forces every reader to context-switch and usually re-implements something that
+      already had a blessed form.
+
+  - id: u-self-explanatory-names
+    topic: Naming
+    severity: nit
+    lintable: false
+    sources: [ge-003, be-005, be-020]
+    principle: >
+      Names describe what the thing is or does. Distinct purposes get distinct names.
+    wrong:
+      description: A name that needs a comment to explain it, or collides across purposes.
+      code: |
+        func HandleCallback() // what does it actually do?
+        func ChangePassword() // used for both reset-flow and authenticated change
+    right:
+      description: Name states the real behavior; split colliding concepts.
+      code: |
+        func UpsertUser()
+        func ResetPassword()   // forgot-password flow
+        func ChangePassword()  // authenticated user
+    reason: If a name needs a comment to explain it, the name is wrong.
+
+  - id: u-document-copied-source
+    topic: Provenance
+    severity: nit
+    lintable: false
+    sources: [ge-006, fe-016]
+    principle: When you copy non-trivial code from a source, add a comment linking it.
+    reason: >
+      The link lets the next reader verify correctness, find context, and check for
+      updates or license terms.
+
+  - id: u-document-divergent-decisions
+    topic: Process
+    severity: nit
+    lintable: false
+    sources: [ge-007]
+    principle: >
+      Record the reasoning for any divergent or non-obvious decision wherever the work
+      lives — PR comment, review output, commit body, or a decisions log.
+    reason: >
+      A written rationale is proof that the tradeoff was considered, and the cheapest
+      way to stop the same debate recurring. Link official docs when they exist and
+      internal docs when available; otherwise a plain rationale is enough. Note: the
+      agent often works offline (reviewing while another agent edits, or pre-push), so
+      "PR comment" is just one of several valid places.
+
+  - id: u-challenge-complexity
+    topic: Collaboration
+    severity: blocker
+    lintable: false
+    sources: ["agent-improvements#2,4,24,35"]
+    principle: >
+      When a request or a design fork raises complexity, or creates a second source of
+      truth, STOP and surface the tradeoff before implementing.
+    reason: >
+      Agents have a strong yes-man tendency. A casual suggestion ("a DB trigger might
+      be nice") implemented literally can balloon complexity. Enforcement is structural
+      (adversarial review + required "design risks / cheaper alternatives" output), not
+      just this instruction — but the baseline expectation is: be a critical partner.
+
+  - id: u-vertical-slice-decomposition
+    topic: Planning
+    severity: blocker
+    lintable: false
+    sources: ["user-2026-06"]
+    principle: >
+      Break work into vertical slices (one capability cutting through all layers), not
+      horizontal layers (all of layer A, then all of layer B).
+    wrong:
+      description: Workstreams split by layer — core, then repo, then controller.
+      code: |
+        WS1: all core entities
+        WS2: all repositories
+        WS3: all controllers
+    right:
+      description: Each task delivers one capability end-to-end.
+      code: |
+        WS1: create-X end-to-end (core + repo + controller + one integration test)
+        WS2: list-X end-to-end
+    reason: >
+      Layer-based splitting produces large amounts of unused scaffolding, blocks the
+      single-table-integration-test approach, and yields huge PRs full of design
+      decisions that surface only at integration time. Vertical slices are
+      independently shippable and testable with one integration test plus a few unit
+      tests for complex logic.
