@@ -16,11 +16,18 @@ rules:
     principle: >
       Use `make test` for validation. Don't run direct `go test` with custom GOCACHE or
       hand-picked package lists.
+    wrong:
+      code: |
+        go test ./cmd/api -run='TestFoo' # to run a specific test
+        go test ./... # to run all tests
+    right:
+      code: |
+        make test path=./cmd/api args=-run='TestFoo' # to run a specific test
+        make test # to run all tests
     reason: >
       The Makefile already handles Docker/integration setup; the Go cache invalidates
       itself correctly; tests are fast. Direct toolchain invocations create sandbox
-      friction. Use direct `go test` only for narrow debugging, then validate with
-      `make test`.
+      friction.
 
   - id: ed-repo-two-version-functions
     topic: Architecture
@@ -58,15 +65,22 @@ rules:
     wrong:
       code: |
         query := "SELECT * FROM documents WHERE firm_id = $1"
-        if filter.Kind != "" { query += " AND kind = $2" }
+        if filter.Kind != "" {
+          query += " AND kind = $2"
+          args = append(args, filter.Kind)
+        }
+        c.db.Query(ctx, query, args...)
     right:
       code: |
-        query := kbuilder.Query{
+        var documents []Document
+        err := c.db.QueryFromBuilder(ctx, &documents, kbuilder.Query{
           From:  "documents d",
           Where: kbuilder.Where("d.firm_id = %s", firmID).
-                          WhereIf(filter.Kind != "", "d.kind = %s", filter.Kind),
-          Offset: offset, Limit: pageSize, OrderBy: "d.id",
-        }
+            WhereIf(filter.Kind != "", "d.kind = %s", filter.Kind),
+          Offset: offset,
+          Limit: pageSize,
+          OrderBy: "d.id",
+        })
     reason: kbuilder is the company standard for listings — WhereIf, pagination, JOIN tag support.
 
   - id: ed-parse-json-with-kparse
@@ -82,7 +96,8 @@ rules:
     right:
       code: |
         var payload struct {
-          Name string `json:"name" validate:"required"`
+          Name string `json:"name" validate:"required,len<50"`
+          Age  int    `json:"age" validate:"required,>18"`
         }
         if err := kparse.ParseJSON(c.Body(), &payload); err != nil {
           return core.BadRequestErr("invalid payload", map[string]any{"error": err})
@@ -95,7 +110,7 @@ rules:
     lintable: false
     sources: ["agent-improvements#25", be-033]
     principle: >
-      Use `db.Insert()` with a named table struct and `ksql.NewTable(...)` rather than
+      Prefer `db.Insert()` with a named table struct and `ksql.NewTable(...)` rather than
       hand-written Exec/INSERT and manual JSON marshalling. Reuse the existing table
       struct if one exists.
     reason: >
@@ -118,23 +133,26 @@ rules:
     severity: blocker
     lintable: false
     sources: [be-017, db-004]
-    principle: Configure `MaxOpenConns` (>= 10) when constructing the DB for production.
+    principle: Configure `MaxOpenConns` above the default of 1 when constructing the DB for production.
     wrong:
       code: |
         db, err := kpgx.New(ctx, dbURL, ksql.Config{})
     right:
       code: |
         db, err := kpgx.New(ctx, dbURL, ksql.Config{MaxOpenConns: 10})
-    reason: The default is 1 — fine for tests, a bottleneck in production.
+    reason: >
+      The default of 1 is fine for tests but a bottleneck in production. Don't hardcode a
+      magic number blindly — pick a value to fit the workload (often via config); the 10
+      above is just a reasonable starting point.
 
   - id: ed-storage-path-by-context
     topic: Storage
-    severity: nit
+    severity: blocker
     lintable: false
     sources: [be-023]
     principle: >
-      Key files in object/KV storage (S3, Redis) by all IDs needed to identify the
-      resource uniquely, not by the bare file ID.
+      In object/KV stores with a shared key namespace (S3, Redis), identify objects by a
+      fully-qualified key, not the bare file ID.
     wrong:
       code: |
         storage.GetUploadURL(ctx, uploadID, opts)
@@ -145,24 +163,3 @@ rules:
     reason: >
       Avoids future collisions, eases storage navigation, and enables bulk deletion
       (useful for LGPD).
-
-  - id: ed-branch-and-commit-style
-    topic: Git
-    severity: nit
-    lintable: false
-    sources: [git-001, git-002, git-003]
-    principle: >
-      Branches: kebab-case starting with an imperative verb, no feat/fix/chore prefixes
-      (the verb carries intent). Commits: short, English, imperative verb, no AI
-      co-authorship or tool branding.
-    wrong:
-      code: |
-        branch: feature/login-page
-        commit: "Corrigir erro\n\nCo-Authored-By: Claude"
-    right:
-      code: |
-        branch: add-email-password-login
-        commit: "Add email/password login flow"
-    reason: >
-      House convention — a different company may use conventional-commits or require
-      co-authorship trailers, so this stays in the org profile.

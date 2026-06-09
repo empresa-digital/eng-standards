@@ -23,7 +23,10 @@ rules:
     right:
       description: Controller calls the repository directly.
       code: |
-        user, err := r.repo.GetUser(ctx, id)
+        func (ct *Controller) GetUser(c fiber.Ctx) error {
+          user, err := ct.repo.GetUser(ctx, id)
+          // ...
+        }
     reason: A layer that only delegates adds complexity without value.
 
   - id: go-adapters-return-domain-errors
@@ -44,7 +47,7 @@ rules:
         return domain.NotFoundErr("file not found", nil)
     reason: >
       The whole point of an adapter is to translate external complexity into the
-      domain language, so the controller can propagate errors without knowing internals.
+      domain language, so the controller can handle/propagate errors without knowing internals.
 
   - id: go-no-dto-for-few-values
     topic: Architecture
@@ -69,7 +72,7 @@ rules:
     severity: nit
     lintable: true
     sources: [be-004]
-    principle: Don't repeat the package name in its members.
+    principle: Don't repeat the package name or struct name in its members.
     wrong:
       description: Member name repeats the package.
       code: |
@@ -172,9 +175,13 @@ rules:
     wrong:
       code: |
         return InternalErr("failed to create", map[string]any{"error": err.Error()})
+        // or
+        return fmt.Errorf("failed to create: %s", err)
     right:
       code: |
         return InternalErr("failed to create", map[string]any{"error": err})
+        // or
+        return fmt.Errorf("failed to create: %w", err)
     reason: Passing the error allows wrapping/unwrapping and is less verbose.
 
   - id: go-return-domain-entities
@@ -194,7 +201,8 @@ rules:
         func GetDocumentVersion(...) (Document, error)
     reason: >
       Single-field accessors multiply and resist reuse. Returning the entity also lets
-      one query validate ownership (firm, diligence) at the same time.
+      one query validate ownership (firm, diligence) at the same time and reduces code
+      duplication that would happen if we had many similar queries on the same tables.
 
   - id: go-inject-repo-not-db
     topic: Architecture
@@ -229,21 +237,30 @@ rules:
 
   - id: go-convert-types-at-boundaries
     topic: Architecture
-    severity: nit
+    severity: blocker
     lintable: false
     sources: [be-031]
     principle: >
-      Convert to domain types inside the adapter. Type conversion in the middle of
-      business logic signals the adapter returned the wrong type.
+      Convert to domain types or abstracted types inside the adapter/controller.
+      Type conversion in the middle of business logic signals the
+      adapter returned the wrong type.
     wrong:
       code: |
         role, _ := repo.GetUserRoleInFirm(ctx, firmId, userId) // returns string
         if role != string(FirmRoleAdmin) { ... }               // conversion mid-logic
+
+        // controller
+        var dto struct{ StartTime string } // string will require conversion
+        err = json.Unmarshal(body, &dto)
     right:
       code: |
         role, _ := repo.GetUserRoleInFirm(ctx, firmId, userId) // returns FirmRole
         if role != FirmRoleAdmin { ... }
-    reason: Boundaries own conversion; the rest of the code works in domain types.
+
+        // controller
+        var dto struct{ StartTime time.Time } // time.Time
+        err = json.Unmarshal(body, &dto)
+    reason: Boundaries own conversion; the rest of the code works with high-level/useful types.
 
   - id: go-validate-method-on-entity
     topic: Validation
@@ -315,8 +332,20 @@ rules:
     lintable: false
     sources: [be-036]
     principle: >
-      A DTO used by a single port/interface is declared with that interface (e.g. the
+      A DTO used by a single port/interface is declared right below that interface (e.g. the
       contracts file), not buried in an adapter implementation.
+    wrong:
+      code: |
+        type Provider interface{
+          SendMessage(msg someotherpkg.Message) error
+        }
+    right:
+      code: |
+        type Provider interface{
+          SendMessage(msg Message) error
+        }
+
+        type Message struct{ ... }
     reason: >
       DTOs are part of the interface contract. Separating them hurts readability and
       can cause import cycles or force the method out of the interface.

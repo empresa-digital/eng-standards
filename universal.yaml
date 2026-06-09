@@ -4,16 +4,16 @@ meta:
   language: en
 
 rules:
-  - id: u-simplicity-over-complexity
+  - id: u-clear-is-better-than-clever
     topic: Simplicity
     severity: blocker
     lintable: false
     sources: [ge-001]
-    principle: Choose the simplest solution that solves the problem.
+    principle: Choose the simplest solution that solves the problem; favor clarity over cleverness.
     reason: >
-      Complexity is the default cost of every line. Simpler code is cheaper to read,
-      test, and change. Most over-engineering in AI output comes from solving problems
-      that were never posed.
+      Cleverness cuts both ways. Dense one-liners hide intent, and needless intermediate
+      variables — one per field instead of using the object directly — add just as much
+      noise. Both, along with duplicated logic, make code harder to read and change.
 
   - id: u-reuse-before-adding
     topic: Reuse
@@ -70,7 +70,7 @@ rules:
     principle: >
       Reuse domain entities freely WITHIN the bounded context (services, adapters, and
       the DB schema when we own the DB and shape it to match the entities). Translate
-      only when crossing OUT to clients or external services.
+      only when crossing OUT to clients or external systems.
     wrong:
       description: Return an internal entity straight to an external client.
       code: |
@@ -164,7 +164,10 @@ rules:
         func UpsertUser()
         func ResetPassword()   // forgot-password flow
         func ChangePassword()  // authenticated user
-    reason: If a name needs a comment to explain it, the name is wrong.
+    reason: >
+      If a name needs a comment to explain it, the name is wrong. Sometimes the best fix
+      is not to name the thing at all — inline it; other times a poorly-named function
+      should be split into several well-named ones.
 
   - id: u-document-copied-source
     topic: Provenance
@@ -183,13 +186,11 @@ rules:
     sources: [ge-007]
     principle: >
       Record the reasoning for any divergent or non-obvious decision wherever the work
-      lives — PR comment, review output, commit body, or a decisions log.
+      lives — code comment, PR comment, commit body, or a decisions log.
     reason: >
       A written rationale is proof that the tradeoff was considered, and the cheapest
       way to stop the same debate recurring. Link official docs when they exist and
-      internal docs when available; otherwise a plain rationale is enough. Note: the
-      agent often works offline (reviewing while another agent edits, or pre-push), so
-      "PR comment" is just one of several valid places.
+      internal docs when available; otherwise a plain rationale is enough.
 
   - id: u-challenge-complexity
     topic: Collaboration
