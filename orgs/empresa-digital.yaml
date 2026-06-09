@@ -127,22 +127,6 @@ rules:
         db, err := kpgx.New(ctx, dbURL, ksql.Config{MaxOpenConns: 10})
     reason: The default is 1 — fine for tests, a bottleneck in production.
 
-  - id: ed-id-zero-not-pointer
-    topic: Modeling
-    severity: nit
-    lintable: false
-    sources: [db-002]
-    principle: Represent an absent optional ID with 0, not a *int pointer.
-    wrong:
-      code: |
-        PartyID *int
-    right:
-      code: |
-        PartyID int // 0 means unset
-    reason: >
-      House preference: simpler than nil checks. (Opinionated — lives in the org profile
-      precisely because another company may decide differently.)
-
   - id: ed-storage-path-by-context
     topic: Storage
     severity: nit

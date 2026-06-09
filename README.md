@@ -48,7 +48,7 @@ rules:
   - id: go-no-passthrough   # stable, semantic, kebab-case, pack-prefixed
     topic: Architecture
     severity: blocker        # blocker | nit
-    lintable: false          # true = candidate for promotion to a linter
+    lintable: false          # true = mechanically checkable; offload target for our linter
     sources: [be-001]        # origin refs (friend's rule ids / agent-improvements case N)
     principle: One-line statement of the rule.   # optional if wrong/right is enough
     wrong:
@@ -69,6 +69,15 @@ Notes:
   pair adds value (common in `universal.yaml`).
 - `id`s are stable: the eval (W9) asserts the review agent flags the matching `id`,
   and each `wrong`/`right` pair doubles as a test fixture.
+
+### The `lintable` flag
+
+`lintable: true` marks a rule that can be checked mechanically (deterministic, no
+judgment call). We plan to write our own linter and migrate these rules to it over
+time. Anything a linter can enforce shouldn't spend agent tokens or risk AI drift — so
+moving a rule out of the agent's context and into the linter both cuts cost and makes
+enforcement deterministic. `lintable: false` rules require judgment and stay with the
+agent.
 
 ## Consumption
 

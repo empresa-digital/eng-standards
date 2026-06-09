@@ -112,19 +112,19 @@ rules:
         FirmID int `json:"firmId"`
     reason: camelCase is the JSON convention consumers expect.
 
-  - id: go-query-params-hyphen
+  - id: go-api-paths-prefer-hyphen-to-underscore
     topic: API
     severity: nit
     lintable: true
     sources: [be-015]
-    principle: Query params use hyphens, not underscores.
+    principle: Prefer hyphens over underscores in URL paths.
     wrong:
       code: |
-        c.Query("content_md5")
+        app.Post("/events/support_request", eventsController.SupportRequest)
     right:
       code: |
-        c.Query("content-md5")
-    reason: Hyphenated query keys are the HTTP convention.
+        app.Post("/events/support-request", eventsController.SupportRequest)
+    reason: Browsers underline URLs, which can hide `_` characters; hyphens stay visible.
 
   - id: go-jwt-standard-claims
     topic: API
@@ -140,20 +140,28 @@ rules:
         ExpiresAt int64 `json:"exp"`
     reason: JWT claims are sent on every request; standard short names are expected.
 
-  - id: go-no-redundant-error-checks
-    topic: Errors
+  - id: go-no-redundant-checks
+    topic: Simplicity
     severity: nit
     lintable: false
     sources: [be-008]
-    principle: Trust the returned error; don't re-check conditions it already covers.
+    principle: Simplify checks when possible; don't re-check conditions unnecessarily.
     wrong:
       code: |
-        if user.ID == "" { return errors.New("user not found") }
+        userID, err := strconv.Atoi(c.Query("userID"))
         if err != nil { return err }
+        if userID <= 0 { return errors.New("invalid userID") }
+
+        value, ok := someInterface.(*User)
+        if !ok || value == nil { return fmt.Errorf("invalid user") }
     right:
       code: |
-        if err != nil { return err } // already a NotFound error if missing
-    reason: The error already carries the information; the extra check is dead weight.
+        userID, _ := strconv.Atoi(c.Query("userID"))
+        if userID <= 0 { return errors.New("invalid userID") }
+
+        value, _ := someInterface.(*User)
+        if value == nil { return fmt.Errorf("invalid user") }
+    reason: Redundant checks only make the code larger and harder to read.
 
   - id: go-wrap-errors-not-stringify
     topic: Errors
@@ -247,9 +255,7 @@ rules:
       DTO to the entity — not inline in the controller.
     wrong:
       code: |
-        for i, p := range payload.Parties {
-          if p.CanonicalID == "" { return BadRequestErr("canonicalId required", nil) }
-        }
+        if payload.Party.CanonicalID == "" { return BadRequestErr("canonicalId required", nil) }
     right:
       code: |
         func (p Party) Validate() error {
@@ -257,7 +263,8 @@ rules:
           return nil
         }
         // controller, after DTO -> entity:
-        if err := parties[i].Validate(); err != nil { return err }
+        err := payload.Party.Validate()
+        if err != nil { return err }
     reason: Centralizes validation, avoids duplication across controllers, eases unit testing.
 
   - id: go-validate-repo-inputs
@@ -277,14 +284,15 @@ rules:
         if filter.FirmID <= 0 { return nil, BadRequestErr("firmID must be positive", nil) }
     reason: >
       The repo may be reused by other routes. Validating here gives a clear error
-      instead of a silent empty result or a confusing DB error.
+      instead of a silent empty result or a confusing DB error. If validating a core
+      concept, call the core invariant-validation functions inside the repo/adapter.
 
-  - id: go-integrity-checks-in-repo
+  - id: go-integrity-checks-in-adapter
     topic: Architecture
     severity: blocker
     lintable: false
     sources: [be-040]
-    principle: Data-integrity rules belong in the repository, not the controller.
+    principle: Data-integrity rules belong in the repository/adapter, not the controller.
     wrong:
       code: |
         // controller
@@ -296,8 +304,10 @@ rules:
         if userID == firm.OwnerID { return BadRequestErr("cannot remove owner", nil) }
         // then DELETE
     reason: >
-      In the controller another caller can bypass the check and corrupt the DB. In the
-      repo the protection is reusable and impossible to skip.
+      A repo/adapter is responsible for making valid requests to external systems, so
+      these validations must live inside the repo/adapter — not the controller, where
+      another caller could bypass the check and corrupt the data. If validating a core
+      concept, call the core invariant-validation functions inside the repo/adapter.
 
   - id: go-dtos-near-their-interface
     topic: Architecture
@@ -352,6 +362,33 @@ rules:
       code: |
         "createdAt": dig.CreatedAt
     reason: encoding/json already emits RFC3339; manual formatting risks inconsistency.
+
+  - id: go-zero-value-over-pointer
+    topic: Modeling
+    severity: nit
+    lintable: false
+    sources: [db-002]
+    principle: >
+      Don't use a pointer just to signal "absent" when the zero value is already
+      invalid. A pointer is only justified when zero is a legitimate value you must
+      distinguish from unset.
+    wrong:
+      description: Pointer used only to express "unset", but a 0 quantity is invalid anyway.
+      code: |
+        type OrderItem struct {
+          Quantity *int // nil = unset; but a 0-quantity item is invalid too
+        }
+    right:
+      description: Use the value type; reject zero in validation.
+      code: |
+        type OrderItem struct {
+          Quantity int // 0 is invalid, so it already means "unset"
+        }
+    reason: >
+      A pointer adds nil-check noise and an extra allocation. When zero is already
+      outside the valid range it doubles as the "absent" marker, so the pointer carries
+      no extra information. Keep the pointer only when zero is meaningful and valid
+      (e.g. a count that can legitimately be 0, distinct from "not provided").
 
   - id: go-no-model-fragmentation
     topic: Modeling
