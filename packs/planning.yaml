@@ -1,0 +1,57 @@
+meta:
+  pack: planning
+  description: >
+    Planning / workflow rules for decomposing work before code is written. Travel
+    anywhere. Pairs with the universal vertical-slice principle (u-vertical-slice-decomposition).
+  language: en
+
+rules:
+  - id: plan-definition-of-ready
+    topic: Planning
+    severity: blocker
+    lintable: false
+    sources: ["initiative-W7"]
+    principle: >
+      A task is ready (splittable no further) only if it has exactly one acceptance
+      criterion, a bounded file surface, zero open design decisions, and a test you
+      could write first. If any of those fail, split or clarify before starting.
+    wrong:
+      description: A broad task bundling several criteria and unresolved design choices.
+      code: |
+        Task: Build user management
+          - registration, login, password reset, roles, audit log
+          - (open) which session strategy? which audit table shape?
+    right:
+      description: One ready slice — single criterion, decided, test-first.
+      code: |
+        Task: Register a user with email + password
+          - acceptance: POST /users creates the row and returns 201
+          - files: users core + repo + controller + one integration test
+          - no open design decisions
+    reason: >
+      Multiple acceptance criteria, open design decisions, or an unbounded file surface
+      are the signals that a task still hides sub-tasks. Splitting first prevents the
+      huge PR where every decision surfaces only at integration time.
+
+  - id: plan-variance-as-ambiguity-signal
+    topic: Estimation
+    severity: nit
+    lintable: false
+    sources: ["initiative-W7"]
+    principle: >
+      Treat disagreement in estimates, not the number itself, as the signal. High
+      spread means a hidden decision or ambiguity — split or clarify until the spread
+      narrows.
+    wrong:
+      description: Average the estimates and commit to the point value.
+      code: |
+        estimates: [2, 3, 8, 13] -> story points = 6.5, scheduled as-is
+    right:
+      description: Read the spread as a flag and resolve the hidden decision.
+      code: |
+        estimates: [2, 3, 8, 13] -> wide spread => something is undecided;
+        clarify the unknown (or split the task) before committing
+    reason: >
+      The estimate number is mostly noise; the disagreement is the information. A wide
+      spread means estimators are imagining different scopes — surface and resolve that
+      before the work starts, rather than averaging it away.
