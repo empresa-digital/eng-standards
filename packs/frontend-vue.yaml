@@ -1,0 +1,369 @@
+meta:
+  pack: frontend-vue
+  description: >
+    Vue + JavaScript rules that survive any Vue/Quasar shop. Tool-specific or
+    house-style conventions (namespace-import style, etc.) live in an org profile.
+  language: en
+
+rules:
+  - id: vue-prefer-events-over-watch
+    topic: Performance
+    severity: blocker
+    lintable: false
+    sources: [fe-001, fe-030]
+    principle: >
+      React to user input with the element's own event callback (@change,
+      @blur, @update:modelValue), not a watcher on the bound ref.
+    wrong:
+      description: A watcher fires the loader on every change to the v-model ref.
+      code: |
+        const statusFilter = ref('')
+
+        watch(statusFilter, () => {
+          loadDiligences()
+        })
+    right:
+      description: The event callback runs only on the real user action.
+      code: |
+        <select v-model="statusFilter" @change="loadDiligences">
+          ...
+        </select>
+    reason: >
+      A watcher is reactive and fires on every change, including programmatic ones,
+      and a deep watcher re-runs a full comparison dozens of times per second. The
+      event callback is explicit, decoupled, and fires only when the user acts.
+
+  - id: vue-batch-requests-not-in-loop
+    topic: Performance
+    severity: blocker
+    lintable: false
+    sources: [fe-002]
+    principle: Fetch related data in one batched request, not one request per item in a loop.
+    wrong:
+      description: One request per order — dozens of round-trips on page load.
+      code: |
+        for (const order of orders) {
+          const customer = await getCustomer(order.customerId)
+        }
+    right:
+      description: Fetch all needed records at once.
+      code: |
+        const customers = await getCustomersByIds(customerIds)
+    reason: >
+      A request-per-item loop makes the page do dozens of round-trips every time it
+      opens. Batch the fetch (or add the missing batch endpoint) instead.
+
+  - id: vue-filter-on-backend
+    topic: Data
+    severity: blocker
+    lintable: false
+    sources: [fe-003]
+    principle: Filter and search on the backend; don't filter a full result set in the browser.
+    wrong:
+      description: Pull everything, then filter client-side.
+      code: |
+        const filtered = results.filter(r => r.name.includes(search))
+    right:
+      description: Pass the filter to the backend.
+      code: |
+        const results = await api.search({ query: search })
+    reason: >
+      Front-end filtering hides backend bugs (the backend silently returns too much),
+      wastes bandwidth, and breaks as soon as the data outgrows one page.
+
+  - id: vue-prefer-optional-chaining
+    topic: Simplicity
+    severity: nit
+    lintable: false
+    sources: [fe-006]
+    principle: Collapse verbose null/undefined guards with optional chaining.
+    wrong:
+      code: |
+        if (order && order.paymentTerms && order.paymentTerms.paymentMethods) {
+          return order.paymentTerms.paymentMethods.join(', ')
+        }
+    right:
+      code: |
+        return (order?.paymentTerms?.paymentMethods || []).join(', ')
+    reason: Optional chaining expresses the same intent with far less noise.
+
+  - id: vue-prefer-plain-object-over-map
+    topic: Simplicity
+    severity: nit
+    lintable: false
+    sources: [fe-007]
+    principle: >
+      Use a plain object for simple string-keyed lookups; reach for Map only when you
+      need its extra features (non-string keys, ordering, size, frequent deletes).
+    wrong:
+      code: |
+        const customersById = new Map()
+        customersById.set(id, customer)
+        const name = customersById.get(id)?.name
+    right:
+      code: |
+        const customersById = {}
+        customersById[id] = customer
+        const name = customersById[id]?.name
+    reason: >
+      For a plain string-keyed lookup the two are equivalent, and the object literal is
+      simpler and more familiar. Don't add Map's ceremony when nothing uses it.
+
+  - id: vue-no-redundant-refs
+    topic: Cleanliness
+    severity: nit
+    lintable: false
+    sources: [fe-008]
+    principle: Don't keep two reactive refs for data you can derive from one.
+    wrong:
+      code: |
+        const selectedOrderId = ref(null)
+        const selectedOrder = ref(null)
+        // selectedOrderId is just selectedOrder.value.id
+    right:
+      code: |
+        const selectedOrder = ref(null)
+        // read selectedOrder.value.id where the id is needed
+    reason: >
+      Two refs for one fact drift out of sync and double the state you must reason
+      about. Derive the second value where it's needed.
+
+  - id: vue-separate-ui-state-from-data
+    topic: Modeling
+    severity: blocker
+    lintable: false
+    sources: [fe-011]
+    principle: Keep UI state out of business-data objects; store it separately.
+    wrong:
+      description: UI flags are spread onto each product before caching.
+      code: |
+        cachedData.products = products.map(p => ({
+          ...p,
+          showResults: false, // UI state
+          searchMode: false,  // UI state
+        }))
+    right:
+      description: Cache the data as-is; keep UI state in its own structure.
+      code: |
+        cachedData.products = products
+        uiState.showResults = false
+    reason: >
+      showResults and searchMode are not part of a product. Mixing UI state into the
+      domain data pollutes the cache and confuses every later reader of that object.
+
+  - id: vue-context-specific-cache-keys
+    topic: Caching
+    severity: nit
+    lintable: false
+    sources: [fe-012]
+    principle: >
+      A generic, reusable store method takes the context-specific key as an argument;
+      don't bake a specific concept into the generic helper's name.
+    wrong:
+      code: |
+        appStore.storeSalesOrderData(data)
+    right:
+      code: |
+        appStore.storeCachedData(`sales_order_${companyId}`, data)
+    reason: >
+      A generic cache helper stays reusable only if the specific key lives at the call
+      site. Coupling the helper to one concept forces a new method per concept.
+
+  - id: vue-no-binary-assets-in-repo
+    topic: Assets
+    severity: nit
+    lintable: false
+    sources: [fe-013]
+    principle: Serve images and other binaries from a CDN/object store, not the git repo.
+    wrong:
+      code: |
+        <img src="./assets/logo.png" />
+    right:
+      code: |
+        <img :src="logoUrl" /> <!-- CDN / object-store URL -->
+    reason: >
+      Git keeps every binary forever, so each commit makes clone slower permanently.
+      In the rare case a local asset is unavoidable, prefer a small file or an SVG.
+
+  - id: vue-no-hidden-global-mutation
+    topic: Simplicity
+    severity: blocker
+    lintable: false
+    sources: [fe-014]
+    principle: >
+      A function should act on the data passed to it, not silently mutate module-level
+      or global reactive state as a side effect.
+    wrong:
+      description: saveToCache also mutates a shared global as a side effect.
+      code: |
+        function saveToCache() {
+          salesOrderData.value.paymentTerms.profitMargin = value // mutates global
+          localStorage.setItem('cache', JSON.stringify(salesOrderData.value))
+        }
+    right:
+      description: Operate on the passed-in data; leave globals alone.
+      code: |
+        function saveToCache(paymentTerms) {
+          const data = { paymentTerms }
+          localStorage.setItem('cache', JSON.stringify(data))
+        }
+    reason: >
+      Hidden global mutation raises complexity: the next reader has to hunt down every
+      place that value is touched to understand a single function.
+
+  - id: vue-services-not-stores-for-api
+    topic: Architecture
+    severity: blocker
+    lintable: false
+    sources: [fe-019]
+    principle: >
+      Put API calls in plain service modules (exported async functions). Reserve the
+      global store for data shared across pages (e.g. the logged-in user), not as an
+      API adapter.
+    wrong:
+      description: A store is used purely to wrap an API call.
+      code: |
+        const useFirmsStore = defineStore('firmsStore', () => {
+          const api = useApi()
+          const firms = ref([])
+          async function listFirms() {
+            firms.value = await api.get('/firms')
+          }
+          return { firms, listFirms }
+        })
+    right:
+      description: A simple service module; the component holds its own loading state.
+      code: |
+        // services/firms.js
+        import { api } from '@/services/api'
+
+        export async function listFirms() {
+          const { data } = await api.get('/firms')
+          return data
+        }
+    reason: >
+      A store is for caching data reused across pages, not for adapting an API. Plain
+      service functions keep loading/error state local to the component and avoid a
+      global singleton owning request logic.
+
+  - id: vue-translate-in-service-layer
+    topic: Boundaries
+    severity: blocker
+    lintable: false
+    sources: [fe-027, fe-028, fe-017]
+    principle: >
+      In the service layer, map the API response and request payload field-by-field.
+      Internal data (cache, store) that never crosses the boundary needs no mapping.
+    wrong:
+      description: Return the raw API body; no hint of its shape.
+      code: |
+        export async function getDiligence(firmId, diligenceId) {
+          const { data } = await api.get(`/firms/${firmId}/diligences/${diligenceId}`)
+          return data
+        }
+    right:
+      description: Map the fields explicitly — the mapping documents the contract.
+      code: |
+        export async function getDiligence(firmId, diligenceId) {
+          const { data } = await api.get(`/firms/${firmId}/diligences/${diligenceId}`)
+          return parseDiligence(data)
+        }
+
+        function parseDiligence(data) {
+          return {
+            id: data.id,
+            title: data.title,
+            status: data.status,
+            createdAt: data.createdAt,
+          }
+        }
+    reason: >
+      Without types, an explicit field mapping is the only in-code documentation of
+      what the API returns or expects — it doubles as the front/back contract. This
+      translation belongs only at the API boundary; restoring an internal cache needs
+      no mapping.
+
+  - id: vue-no-return-on-204
+    topic: API
+    severity: nit
+    lintable: false
+    sources: [fe-029]
+    principle: Don't return the body of an endpoint that responds 204 No Content.
+    wrong:
+      code: |
+        export async function deleteDiligence(firmId, diligenceId) {
+          const { data } = await api.delete(`/firms/${firmId}/diligences/${diligenceId}`)
+          return data
+        }
+    right:
+      code: |
+        export async function deleteDiligence(firmId, diligenceId) {
+          await api.delete(`/firms/${firmId}/diligences/${diligenceId}`)
+        }
+    reason: >
+      A 204 has no body, so returning data returns undefined and misleads callers into
+      thinking something useful comes back.
+
+  - id: vue-rethrow-after-logging
+    topic: Errors
+    severity: blocker
+    lintable: false
+    sources: [fe-020]
+    principle: >
+      A catch block that logs an error must re-throw it; logging alone swallows the
+      failure.
+    wrong:
+      code: |
+        try {
+          await downloadPdf()
+        } catch (error) {
+          console.error('Failed to generate:', error)
+        } finally {
+          loading.value = false
+        }
+    right:
+      code: |
+        try {
+          await downloadPdf()
+        } catch (error) {
+          console.error('Failed to generate:', error)
+          throw error
+        } finally {
+          loading.value = false
+        }
+    reason: >
+      console.error is not error handling. Without the re-throw, the failure never
+      reaches the notification/monitoring service and the user sees nothing.
+
+  - id: vue-page-title-via-route-meta
+    topic: Architecture
+    severity: nit
+    lintable: false
+    sources: [fe-026]
+    principle: >
+      Define a page's title in the route (via meta), not by reverse-engineering the
+      path with regex in the layout.
+    wrong:
+      description: The layout guesses page names from the URL with regex.
+      code: |
+        const getDynamicPageName = () => {
+          if (route.path.match(/^\/firms\/[^/]+\/diligences$/)) {
+            return `Diligences - ${route.query.firmName || 'Firm'}`
+          }
+          return null
+        }
+    right:
+      description: The route declares its own title; the layout just reads it.
+      code: |
+        // router/index.js
+        { path: '/firms/:firmId/diligences',
+          meta: { pageTitle: (route) => `Diligences - ${route.query.firmName || 'Firm'}` } }
+
+        // AppNavbar.vue
+        const currentPageName = computed(() => {
+          if (typeof route.meta.pageTitle === 'function') return route.meta.pageTitle(route)
+          return route.meta.pageTitle || 'Page'
+        })
+    reason: >
+      Path-matching regex in the layout couples it to every page. Declaring the title
+      on the route keeps the layout generic and the title next to the page it names.
