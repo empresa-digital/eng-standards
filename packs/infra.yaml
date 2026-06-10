@@ -1,0 +1,49 @@
+meta:
+  pack: infra
+  description: >
+    Infrastructure / DevOps rules (containers, Kubernetes, CI/CD, secrets) that
+    survive any shop. Cluster-name and pipeline specifics live in an org profile.
+  language: en
+
+rules:
+  - id: infra-no-newline-in-secrets
+    topic: Secrets
+    severity: blocker
+    lintable: false
+    sources: [infra-001]
+    principle: >
+      When materializing a secret from the shell, don't let a trailing newline sneak
+      in — `echo` appends `\n` by default.
+    wrong:
+      description: A subshell echo appends a newline into the secret value.
+      code: |
+        kubectl create secret generic verik --from-literal=AWS_KEY="$(echo VALUE)"
+    right:
+      description: Pass the value directly (or use echo -n / printf '%s').
+      code: |
+        kubectl create secret generic verik --from-literal=AWS_KEY=VALUE
+    reason: >
+      A stray trailing newline silently corrupts the secret and breaks HTTP headers
+      (e.g. Authorization) when the value is used. Use echo -n, printf '%s', or no
+      subshell at all.
+
+  - id: infra-validate-secrets-after-create
+    topic: Secrets
+    severity: nit
+    lintable: false
+    sources: [infra-002]
+    principle: After creating a secret, read it back and verify its exact bytes.
+    wrong:
+      description: Create the secret and trust it blindly.
+      code: |
+        kubectl create secret generic verik --from-literal=AWS_KEY=VALUE
+        # nothing verifies what was stored
+    right:
+      description: Decode and inspect the raw bytes for stray characters.
+      code: |
+        kubectl create secret generic verik --from-literal=AWS_KEY=VALUE
+        kubectl get secret verik -o jsonpath='{.data.AWS_KEY}' | base64 -d | od -c
+    reason: >
+      Secrets fail silently and are painful to debug in production. Decoding the stored
+      value (od -c shows hidden bytes like a trailing newline) catches the error at
+      creation time.
