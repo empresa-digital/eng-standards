@@ -231,3 +231,31 @@ rules:
       decisions that surface only at integration time. Vertical slices are
       independently shippable and testable with one integration test plus a few unit
       tests for complex logic.
+
+  - id: u-fix-defects-at-their-source
+    topic: Process
+    severity: blocker
+    lintable: false
+    sources: ["pr-review#406,426,480,501"]
+    principle: >
+      When a value arrives wrong from another layer or service, fix it where it
+      originates — don't compensate for it in the consumer.
+    wrong:
+      description: A consumer patches data the producing layer should have sent correctly.
+      code: |
+        // frontend, working around a backend that wrongly returns a zero timestamp
+        const created = item.createdAt === '0001-01-01T00:00:00Z' ? null : item.createdAt
+        // or: stringify an int prop just to silence a type warning the API should not cause
+        :firm-id="String(firmId)"
+    right:
+      description: Fix the producing layer; the consumer takes the value as-is.
+      code: |
+        // backend stops emitting the zero value; frontend just reads it
+        const created = item.createdAt
+    reason: >
+      A workaround in the consumer leaves the real defect in place for every other
+      consumer and hides it from view; patches then multiply as each caller adds its
+      own. Always ask "what bug does this fix actually address?" — if the answer is a
+      defect upstream, fix it there. Distinct from u-no-defensive-code-for-impossible-states:
+      that bans guarding states that cannot happen; this bans masking a real defect that
+      happens in a layer you can fix.
