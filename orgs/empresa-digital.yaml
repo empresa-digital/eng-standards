@@ -163,3 +163,73 @@ rules:
     reason: >
       Avoids future collisions, eases storage navigation, and enables bulk deletion
       (useful for LGPD).
+
+  - id: ed-namespace-imports
+    topic: Imports
+    severity: nit
+    lintable: false
+    sources: [fe-010]
+    principle: >
+      Import a local module as a namespace (`import * as x`) and call through it, rather
+      than destructuring named exports. House style, Go-flavored.
+    wrong:
+      code: |
+        import { format, parse } from './currencies'
+        format(value)
+    right:
+      code: |
+        import * as currencies from './currencies'
+        currencies.format(value)
+    reason: >
+      The package prefix on each call reads as inline documentation and avoids name
+      clashes. This is an empresa-digital house preference — most JS shops prefer named
+      imports, so it does not travel and stays in the org profile.
+
+  - id: ed-git-conventions
+    topic: Git
+    severity: nit
+    lintable: false
+    sources: [git-001, git-002]
+    principle: >
+      Branches: kebab-case starting with an imperative verb, with NO feat/fix/chore
+      prefix (the verb already carries the intent). Commit messages are written in
+      English.
+    wrong:
+      code: |
+        feature/login-page          # branch
+        chore/cleanup               # branch
+        Corrigir erro no login      # commit message in Portuguese
+    right:
+      code: |
+        implement-forgot-password   # branch
+        remove-unused-frontend-pages
+        Fix login validation error  # commit message in English
+    reason: >
+      The no-prefix branch policy and English-only commits are empresa-digital house
+      conventions. They contradict conventional-commit shops and Portuguese-first teams,
+      so they don't travel — the portable parts (imperative, concise, clean history)
+      live in packs/git.yaml.
+
+  - id: ed-use-testtools-helpers
+    topic: Testing
+    severity: nit
+    lintable: false
+    sources: [be-006, be-010, be-012]
+    principle: >
+      Use the house test stack: `tt.Fake[T]` to build fixtures, `tt.AssertEqual` /
+      `tt.AssertNoErr` / `tt.AssertContainsErr` for assertions, and `startAPI` to boot
+      the real app in integration tests.
+    wrong:
+      code: |
+        firm := Firm{ID: 1, Name: "Test"}        // hand-built fixture
+        assert.NoError(t, err)                    // third-party assert
+        mux := http.NewServeMux()                 // hand-built router
+    right:
+      code: |
+        firm := tt.Fake[Firm](t, customValues)
+        tt.AssertNoErr(t, err)
+        startAPI(ctx, cfg)
+    reason: >
+      tt and startAPI are empresa-digital's own helpers; the portable principles
+      (data-driven tests, real-app integration) live in packs/testing.yaml while these
+      tool names stay in the org profile.
