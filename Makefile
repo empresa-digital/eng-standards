@@ -13,7 +13,13 @@ setup:
 		git clone --quiet "$(REPO_URL)" "$(CACHE_DIR)"; \
 	fi
 
-# Validate every YAML file against the rule schema (slice 2: scripts/validate.py).
+# Validate every YAML file against the rule schema.
 .PHONY: validate
 validate:
 	@python3 scripts/validate.py
+
+# Eval the reviewer against the library's own `wrong` fixtures (needs `claude` CLI).
+# `make eval` runs all; pass ARGS for subsets, e.g. `make eval ARGS="--limit 5"`.
+.PHONY: eval
+eval:
+	@python3 scripts/eval.py $(ARGS)
