@@ -60,7 +60,7 @@ rules:
       When a column stops being (part of) the primary key, it loses its implicit
       index — add an explicit index if it's still used in joins or filters.
     wrong:
-      description: flag_id was a standalone PK; now only the leading column of a composite PK is indexed.
+      description: document_id was its own standalone PK; folded into a composite PK it is non-leading, so the composite index no longer covers it.
       code: |
         CREATE TABLE document_flags (
             flag_id int NOT NULL REFERENCES flags(id),
