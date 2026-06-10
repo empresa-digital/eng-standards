@@ -439,3 +439,99 @@ rules:
     reason: >
       Parallel structs fragment the domain model. This is the Go-concrete form of
       u-reuse-before-adding and u-one-source-of-truth.
+
+  - id: go-initialize-empty-slices-for-json
+    topic: API
+    severity: nit
+    lintable: false
+    sources: ["pr-review#397,419,430,454"]
+    principle: >
+      Initialize a slice that will be JSON-encoded with an empty literal (`[]T{}`), not
+      left as a nil slice, so an empty result serializes to `[]` and not `null`.
+    wrong:
+      description: A nil slice is returned, so JSON encodes the empty case as null.
+      code: |
+        var comments []core.Comment
+        err := db.Query(ctx, &comments, query, itemID)
+        // empty result -> comments is nil -> JSON: "comments": null
+        return comments, err
+    right:
+      description: Initialize the slice so the empty case serializes to [].
+      code: |
+        comments := []core.Comment{}
+        err := db.Query(ctx, &comments, query, itemID)
+        return comments, err
+    reason: >
+      A nil slice marshals to `null`, which commonly breaks front-end code that expects
+      an array to iterate. An empty literal returns `[]`. Fix it at the repository layer
+      so every caller benefits instead of each one guarding against null, and cover the
+      empty-result case with a test.
+
+  - id: go-minimize-db-roundtrips
+    topic: Performance
+    severity: blocker
+    lintable: false
+    sources: ["pr-review#403,436,481,501"]
+    principle: >
+      Don't query in a loop or split one logical check across several round-trips.
+      Express it as a single set-based query.
+    wrong:
+      description: A per-item query in a loop, and two separate existence checks.
+      code: |
+        for _, id := range itemIDs {
+          item, _ := c.repo.GetItem(ctx, id) // one round-trip per item
+          results = append(results, item)
+        }
+
+        // elsewhere: two queries to validate one request
+        diligence, err := c.repo.GetDiligence(ctx, diligenceID)
+        item, err := c.repo.GetItem(ctx, itemID)
+    right:
+      description: One set-based query covering all the rows / all the conditions.
+      code: |
+        err := c.db.Query(ctx, &results,
+          "FROM items WHERE id = ANY($1) ORDER BY id", itemIDs)
+
+        // single existence check joining the tables
+        var count struct{ Count int `ksql:"c"` }
+        err = c.db.QueryOne(ctx, &count,
+          `SELECT count(*) AS c
+          FROM diligences d
+          JOIN diligence_items di
+            ON d.id = di.diligence_id
+          WHERE d.firm_id = $1
+            AND di.id = $2`, firmID, itemID)
+    reason: >
+      Each query pays the full network round-trip from the pod to the datastore and
+      back; for simple checks that latency dominates the work. Collapsing N queries into
+      one (a JOIN, an `ANY`/`IN`, or a single set-based statement) is faster and usually
+      less code. Applies to any networked datastore, not just SQL.
+
+  - id: go-no-durable-state-in-memory
+    topic: Architecture
+    severity: blocker
+    lintable: false
+    sources: ["pr-review#386,431"]
+    principle: >
+      Don't keep state that must survive across requests in process memory. Persist it
+      to an external store.
+    wrong:
+      description: Per-user history kept in a package-level map; lost on restart.
+      code: |
+        var chatHistory = map[int][]Message{} // in-process, per-pod
+
+        func appendMessage(userID int, m Message) {
+          chatHistory[userID] = append(chatHistory[userID], m)
+        }
+    right:
+      description: Read and write the state from a shared external store.
+      code: |
+        func appendMessage(ctx context.Context, userID int, m Message) error {
+          return historyStore.Append(ctx, userID, m) // e.g. cache/db
+        }
+    reason: >
+      Containers and pods are ephemeral — they restart for deploys, node rebalancing, or
+      crashes at any time, dropping in-memory state. Anything that must outlive a single
+      request (sessions, history, tokens, dedup keys) belongs in a shared external store,
+      which also lets it work correctly across replicas. The specific store is an org
+      choice; the rule is "not process memory".
