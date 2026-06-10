@@ -20,8 +20,11 @@ packs/                  # bind to a language/paradigm — travel to any Go/Vue s
   planning.yaml         # (slice 2)
 orgs/                   # bind to a tool OR a house convention — do NOT travel
   empresa-digital.yaml  # one file per company; swap at a new job
+review/
+  reviewer.md           # adversarial reviewer prompt (the W3 agent)
 scripts/
-  validate.py           # CI schema-check (slice 2)
+  validate.py           # CI schema-check
+  eval.py               # W9 eval: does the reviewer catch our own rules?
 ```
 
 ## The sorting test
@@ -98,3 +101,28 @@ make setup   # clones to ~/.cache/eng-standards, or pulls if already present
 ```
 
 Always latest, no submodule, no filesystem-path assumptions. Public repo → no auth.
+
+## Review & eval
+
+`review/reviewer.md` is the adversarial reviewer prompt. It loads the packs that match
+the changed file types, explores the repo (the top failure — "does this already
+exist?" — is invisible from a diff), and emits findings keyed to rule `id`s plus three
+mandatory pushback sections (design risks / decisions unsure / cheaper alternatives).
+Wire it into a consuming repo via that repo's `AGENTS.md` or a Claude subagent; the
+prompt is plain text, so swapping agents means rewriting only the wrapper.
+
+The library's own `wrong` fixtures are the eval. Each rule with a `wrong` block is a
+test case: feed the bad code to the reviewer and assert it flags that rule's `id`.
+
+```sh
+make eval                      # all fixtures (needs the `claude` CLI)
+make eval ARGS="--limit 5"     # cheap smoke run
+make eval ARGS="--ids go-no-stuttering,go-json-camelcase"
+```
+
+By default the eval shows the reviewer **only the bad code** — a rule's
+`wrong.description` often states the diagnosis, which would leak the answer. Pass
+`--with-desc` to add that context back (an easier run). The catch-rate answers "does
+the reviewer catch our own rules?" and grows with the library. Rules that need
+repo-wide context to detect are tagged `repo-context`, since the snippet-only eval
+understates them.
