@@ -1,0 +1,301 @@
+meta:
+  pack: testing
+  description: >
+    Test-design rules that survive any test framework. Loaded alongside the language
+    pack for a change. Helper-specific names (tt.Fake, startAPI, cy.intercept) are
+    genericized here; the house test stack lives in an org profile.
+  language: en
+
+rules:
+  - id: test-data-driven-tests
+    topic: Structure
+    severity: blocker
+    lintable: false
+    sources: [be-010]
+    principle: >
+      Tests are table/data-driven. Keep branching logic out of the test body — the
+      only allowed branch is the expected-error check.
+    wrong:
+      description: The assertion path forks on a per-case boolean.
+      code: |
+        if test.shouldFail {
+          assert.Error(t, err)
+        } else {
+          assert.NoError(t, err)
+        }
+    right:
+      description: One error branch, then the linear happy-path assertions.
+      code: |
+        if test.expectErrToContain != "" {
+          assertContainsErr(t, err, test.expectErrToContain)
+          return
+        }
+        assertNoErr(t, err)
+    reason: >
+      Conditional logic in a test is itself untested and hides what each case actually
+      asserts. A flat data-driven shape keeps every case readable and uniform.
+
+  - id: test-descriptive-fixture-names
+    topic: Naming
+    severity: nit
+    lintable: false
+    sources: [be-011, be-027]
+    principle: >
+      Name test variables for what they hold. Don't prefix non-mocks with "mock", and
+      don't use generic names like dbInitialState when dbUsers says more.
+    wrong:
+      code: |
+        mockStorageUrl := "http://example.com"
+        dbInitialState := []User{...}
+    right:
+      code: |
+        getUploadUrlResponse := "http://example.com"
+        dbUsers := []User{...}
+    reason: >
+      "mock" means the mock struct, not an arbitrary value; a precise name (dbUsers,
+      dbFirms) tells the reader exactly what the fixture represents.
+
+  - id: test-integration-uses-real-app
+    topic: Integration
+    severity: blocker
+    lintable: false
+    sources: [be-012]
+    principle: >
+      Integration tests exercise the real application wiring (the function that boots
+      the actual server/router), not hand-built routes.
+    wrong:
+      description: The test reconstructs a router instead of starting the real app.
+      code: |
+        mux := http.NewServeMux()
+        mux.HandleFunc("/test", handler)
+    right:
+      description: Boot the real app the same way production does.
+      code: |
+        startAPI(ctx, cfg)
+    reason: >
+      A hand-built router tests a fiction — it skips the real middleware, routing, and
+      wiring, so it can pass while production is broken.
+
+  - id: test-no-hardcoded-indices
+    topic: Assertions
+    severity: nit
+    lintable: false
+    sources: [be-024]
+    principle: >
+      Capture into a slice and assert against an expected slice; don't reach into a
+      fixed index like [0].
+    wrong:
+      code: |
+        var capturedPath string
+        mock.Fn = func(path string) { capturedPath = path }
+        // ...
+        assertEqual(t, capturedPath, test.dbData[0].Path)
+    right:
+      code: |
+        var uploadedPaths []string
+        mock.Fn = func(path string) { uploadedPaths = append(uploadedPaths, path) }
+        // ...
+        assertEqual(t, uploadedPaths, test.expectedPaths)
+    reason: >
+      A hardcoded [0] panics on empty input and can't express the zero- or many-item
+      cases. A slice + expected field tests all arities.
+
+  - id: test-compare-collections-directly
+    topic: Assertions
+    severity: nit
+    lintable: false
+    sources: [be-026]
+    principle: >
+      Compare whole structs/slices in one assertion (zeroing dynamic fields first),
+      not field-by-field in a loop.
+    wrong:
+      code: |
+        assertEqual(t, len(respDocs), len(test.expectedDocuments))
+        for i, expected := range test.expectedDocuments {
+          assertEqual(t, respDocs[i].ID, expected.ID)
+          assertEqual(t, respDocs[i].Name, expected.Name)
+        }
+    right:
+      code: |
+        for i := range respDocs {
+          respDocs[i].CreatedAt = time.Time{}
+        }
+        assertEqual(t, respDocs, test.expectedDocuments)
+    reason: >
+      A whole-value compare is shorter and prints a full diff on failure. Looping
+      asserts only the fields you remembered and hides the rest.
+
+  - id: test-flexible-request-body
+    topic: Integration
+    severity: nit
+    lintable: false
+    sources: [te-001]
+    principle: >
+      In API tests, type the request body as a flexible map/any so invalid payloads are
+      expressible, not a strict request struct.
+    wrong:
+      code: |
+        tests := []struct {
+          requestBody createFirmRequest
+        }{
+          {requestBody: createFirmRequest{Name: "Test"}},
+        }
+    right:
+      code: |
+        tests := []struct {
+          requestBody any
+        }{
+          {requestBody: map[string]any{"name": "Test"}},
+        }
+    reason: >
+      A typed body can't represent a missing field or wrong type, so it can't test the
+      validation paths an API most needs covered.
+
+  - id: test-verify-persisted-records
+    topic: Integration
+    severity: blocker
+    lintable: false
+    sources: [te-002, te-005]
+    principle: >
+      Assert the actual persisted records, not just the API response and not just a row
+      count.
+    wrong:
+      description: Trust the response body, or only count rows.
+      code: |
+        var respFirm Firm
+        json.Unmarshal(resp.Body, &respFirm)
+        assertEqual(t, respFirm, test.expectedFirm)
+        // or:
+        var count struct{ Count int }
+        db.QueryOne(ctx, &count, "SELECT count(*) FROM firms")
+        assertEqual(t, count.Count, test.expectedCount)
+    right:
+      description: Read the rows back and compare them.
+      code: |
+        var respBody struct{ ID int `json:"id"` }
+        json.Unmarshal(resp.Body, &respBody)
+
+        var dbFirm Firm
+        db.QueryOne(ctx, &dbFirm, "FROM firms WHERE id = $1", respBody.ID)
+        assertEqual(t, dbFirm, test.expectedFirm)
+    reason: >
+      A correct response doesn't prove the data was persisted correctly. A count can't
+      catch swapped ids or wrong field values. Comparing the real rows does both for
+      little extra effort.
+
+  - id: test-unit-test-complex-logic
+    topic: Coverage
+    severity: nit
+    lintable: false
+    sources: [te-003]
+    principle: >
+      Functions with regex or other intricate validation get dedicated unit tests for
+      valid and invalid inputs.
+    reason: >
+      Regex and similar logic are error-prone and cheap to test in isolation; a unit
+      test pins the behavior down where an integration test would only graze it.
+
+  - id: test-no-trivial-test-helpers
+    topic: Simplicity
+    severity: nit
+    lintable: false
+    sources: [fe-021]
+    principle: >
+      Don't wrap a framework call in a thin custom helper that adds no real
+      abstraction — call the framework directly.
+    wrong:
+      description: A custom command that just forwards to the framework's intercept.
+      code: |
+        Cypress.Commands.add('mockApi', (method, url, alias, response) => {
+          cy.intercept(method, url, { body: response }).as(alias)
+        })
+        cy.mockApi('POST', /\/api\/items/, 'create', { id: 1 })
+    right:
+      description: Use the framework call directly.
+      code: |
+        cy.intercept('POST', /\/api\/items/, { body: { id: 1 } }).as('create')
+    reason: >
+      A one-line wrapper just adds an indirection a reader must look up; the direct call
+      is clearer and already familiar.
+
+  - id: test-inline-fixtures
+    topic: Readability
+    severity: nit
+    lintable: false
+    sources: [fe-022]
+    principle: Keep test data inline in the test so the test is self-contained.
+    wrong:
+      description: The data lives in an external fixture file.
+      code: |
+        cy.intercept('GET', /\/api\/items/, { fixture: 'items.json' }).as('list')
+    right:
+      description: Inline data — the whole test reads in one place.
+      code: |
+        const items = [
+          { id: 1, name: 'Item A' },
+          { id: 2, name: 'Item B' },
+        ]
+        cy.intercept('GET', /\/api\/items/, { body: items }).as('list')
+    reason: >
+      An external fixture forces the reader to open another file to understand the
+      test; inline data keeps cause and effect together.
+
+  - id: test-assert-after-action
+    topic: Assertions
+    severity: blocker
+    lintable: false
+    sources: [fe-023]
+    principle: Every action in a test is followed by an assertion that it had its effect.
+    wrong:
+      description: The test clicks but never checks the outcome.
+      code: |
+        it('switches to Manual filter', () => {
+          cy.contains('All Reasons').click()
+          cy.get('.q-menu .q-item').contains('Manual').click()
+        })
+    right:
+      description: Assert the UI reflected the action.
+      code: |
+        it('switches to Manual filter and updates label', () => {
+          cy.contains('All Reasons').click()
+          cy.get('.q-menu .q-item').contains('Manual').click()
+          cy.contains('All Reasons').should('not.exist')
+          cy.contains('Manual').should('exist')
+        })
+    reason: >
+      A test that only performs actions asserts nothing — it passes as long as the code
+      doesn't crash, which is not what the test claims to verify.
+
+  - id: test-colocate-test-files
+    topic: Organization
+    severity: nit
+    lintable: false
+    sources: [fe-024]
+    principle: Put the test file next to the file it tests, not in a separate __tests__ folder.
+    wrong:
+      code: |
+        src/components/quotes/__tests__/QuotesListing.test.js
+    right:
+      code: |
+        src/components/quotes/QuotesListing.test.js
+    reason: >
+      Co-locating the test keeps it visible and one click away from the code; a separate
+      __tests__ tree hides it and complicates navigation.
+
+  - id: test-name-mocked-tests-correctly
+    topic: Naming
+    severity: nit
+    lintable: false
+    sources: [fe-025]
+    principle: >
+      Don't call browser tests that mock the backend "E2E" — they're integration tests
+      with a mocked API.
+    wrong:
+      code: |
+        ### Cypress E2E Testing
+    right:
+      code: |
+        ### Cypress Integration Tests (with mocked API)
+    reason: >
+      By definition E2E doesn't mock the backend. Mislabeling it sets the wrong
+      expectation about what coverage actually exists.
