@@ -233,3 +233,34 @@ rules:
       tt and startAPI are empresa-digital's own helpers; the portable principles
       (data-driven tests, real-app integration) live in packs/testing.yaml while these
       tool names stay in the org profile.
+
+  - id: ed-wrap-multi-clause-sql
+    topic: SQL
+    severity: nit
+    lintable: true
+    sources: [vini-style]
+    principle: >
+      A single-line query that packs more than one clause (FROM + JOIN + WHERE, or
+      several conditions) and runs past ~80 chars must wrap by clause: each JOIN and
+      WHERE on its own line, with the ON and any trailing AND moved to the line below
+      and indented. A line carrying a SINGLE clause may exceed 80 (e.g. a long json
+      projection with verbose column names) and is left alone — never an unfixable nit.
+    wrong:
+      code: |
+        SELECT d.* FROM diligence d LEFT JOIN firm_users fu ON fu.firm_id = d.firm_id AND fu.user_id = $1 WHERE d.status = 'open' AND d.firm_id = $2
+    right:
+      code: |
+        SELECT d.*
+        FROM diligence d
+        LEFT JOIN firm_users fu
+          ON fu.firm_id = d.firm_id
+          AND fu.user_id = $1
+        WHERE d.status = 'open'
+          AND d.firm_id = $2
+    reason: >
+      A long multi-clause query on one physical line is unscannable and produces noisy
+      diffs. Wrapping by clause — ON and AND dropped below their JOIN/WHERE — puts each
+      condition on its own reviewable line. The single-clause exemption means a long
+      json_build_object or column list with long names never trips a nit you can't fix.
+      This is an empresa-digital house formatting preference; other shops wrap SQL
+      differently, so it stays in the org profile, not packs/database.yaml.
