@@ -264,3 +264,34 @@ rules:
       json_build_object or column list with long names never trips a nit you can't fix.
       This is an empresa-digital house formatting preference; other shops wrap SQL
       differently, so it stays in the org profile, not packs/database.yaml.
+
+  - id: ed-prefer-plain-sql-for-static-queries
+    topic: Repository
+    severity: nit
+    lintable: false
+    sources: ["pr-review#381,383,436"]
+    principle: >
+      Reserve `kbuilder` for queries whose shape varies at runtime (conditional filters,
+      pagination). For a fixed, static query, write plain SQL with `db.Query`/`db.Exec`.
+    wrong:
+      description: kbuilder used for a constant query with no runtime-varying parts.
+      code: |
+        err = c.db.QueryFromBuilder(ctx, &rows, kbuilder.Query{
+          From:  "diligence_parties dp JOIN parties p ON p.id = dp.party_id",
+          Where: kbuilder.Where("dp.diligence_id = %s", diligenceID),
+          OrderBy: "p.id",
+        })
+    right:
+      description: Plain SQL — the query has no dynamic parts.
+      code: |
+        err = c.db.Query(ctx, &rows,
+          `FROM diligence_parties dp
+          JOIN parties p
+            ON p.id = dp.party_id
+          WHERE dp.diligence_id = $1
+          ORDER BY p.id`, diligenceID)
+    reason: >
+      kbuilder earns its keep on LIST endpoints with conditional WhereIf + pagination
+      (see ed-list-funcs-use-kbuilder-and-pagination). For a query with no
+      runtime-varying parts it is "a cannon to kill a fly" — plain SQL is shorter and
+      reads more directly. This complements the list-funcs rule, it does not contradict it.
