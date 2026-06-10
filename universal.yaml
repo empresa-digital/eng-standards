@@ -8,7 +8,7 @@ rules:
     topic: Simplicity
     severity: blocker
     lintable: false
-    sources: [ge-001]
+    sources: [ge-001, fe-015]
     principle: Choose the simplest solution that solves the problem; favor clarity over cleverness.
     reason: >
       Cleverness cuts both ways. Dense one-liners hide intent, and needless intermediate
@@ -137,7 +137,7 @@ rules:
     topic: Consistency
     severity: blocker
     lintable: false
-    sources: [ge-004, "agent-improvements#6,7,15,25,27,40"]
+    sources: [ge-004, fe-018, "agent-improvements#6,7,15,25,27,40"]
     principle: >
       Inspect and follow the patterns already established in the project before
       inventing a new one (test command, helpers, pagination, naming, mocks).
