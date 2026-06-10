@@ -1,0 +1,86 @@
+meta:
+  pack: database
+  description: >
+    SQL / relational-modeling rules that survive any Postgres shop. ORM- and
+    driver-specific rules (kbuilder, kpgx pooling) live in an org profile.
+  language: en
+
+rules:
+  - id: db-sql-case-convention
+    topic: SQL
+    severity: nit
+    lintable: true
+    sources: [db-001]
+    principle: >
+      Keywords in uppercase, identifiers in lowercase — consistently across the whole
+      statement.
+    wrong:
+      code: |
+        SELECT * From firm_users cu
+        JOIN sales_orders so on cu.Firm_id = so.firm_id
+    right:
+      code: |
+        SELECT * FROM firm_users cu
+        JOIN sales_orders so ON cu.firm_id = so.firm_id
+    reason: A single casing convention keeps SQL scannable and diff-friendly.
+
+  - id: db-composite-pk-for-join-tables
+    topic: Modeling
+    severity: blocker
+    lintable: false
+    sources: [db-005]
+    principle: >
+      A pure association/junction table uses the composite of its foreign keys as the
+      primary key, not a separate serial id.
+    wrong:
+      code: |
+        CREATE TABLE diligence_parties (
+            id serial PRIMARY KEY,
+            diligence_id int NOT NULL REFERENCES diligence(id),
+            party_id int NOT NULL REFERENCES parties(id)
+        );
+    right:
+      code: |
+        CREATE TABLE diligence_parties (
+            diligence_id int NOT NULL REFERENCES diligence(id),
+            party_id int NOT NULL REFERENCES parties(id),
+
+            PRIMARY KEY (diligence_id, party_id)
+        );
+    reason: >
+      The composite key enforces the natural uniqueness (one row per pair) for free. A
+      serial id adds a column that buys nothing and permits duplicate pairs.
+
+  - id: db-index-demoted-pk-columns
+    topic: Performance
+    severity: nit
+    lintable: false
+    sources: [db-006]
+    principle: >
+      When a column stops being (part of) the primary key, it loses its implicit
+      index — add an explicit index if it's still used in joins or filters.
+    wrong:
+      description: flag_id was a standalone PK; now only the leading column of a composite PK is indexed.
+      code: |
+        CREATE TABLE document_flags (
+            flag_id int NOT NULL REFERENCES flags(id),
+            document_id int NOT NULL REFERENCES documents(id),
+            version_id int NOT NULL REFERENCES document_versions(id),
+
+            PRIMARY KEY (flag_id, document_id, version_id)
+        );
+    right:
+      description: Add the index the demoted column needs for its queries.
+      code: |
+        CREATE TABLE document_flags (
+            flag_id int NOT NULL REFERENCES flags(id),
+            document_id int NOT NULL REFERENCES documents(id),
+            version_id int NOT NULL REFERENCES document_versions(id),
+
+            PRIMARY KEY (flag_id, document_id, version_id)
+        );
+
+        CREATE INDEX idx_document_flags_document ON document_flags(document_id);
+    reason: >
+      A composite PK only indexes its leading column efficiently. A non-leading column
+      that was previously its own PK silently loses index support and slows its queries.
