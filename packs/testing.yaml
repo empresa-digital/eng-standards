@@ -299,3 +299,34 @@ rules:
     reason: >
       By definition E2E doesn't mock the backend. Mislabeling it sets the wrong
       expectation about what coverage actually exists.
+
+  - id: test-explicit-setup-over-hooks
+    topic: Structure
+    severity: nit
+    lintable: false
+    sources: ["pr-review#481"]
+    principle: >
+      Prefer an explicit setup function each test calls (e.g. setupPage(), setupComponent())
+      over a beforeEach hook, so setup is visible in the test and can take per-case overrides.
+    wrong:
+      description: A beforeEach hides setup and forces one shape on every test.
+      code: |
+        beforeEach(() => {
+          mountPage({ role: 'admin' })
+        })
+        it('shows the admin panel', () => { /* ... */ })
+    right:
+      description: An explicit setup function the test calls with the overrides it needs.
+      code: |
+        function setupPage(opts = {}) {
+          mountPage({ role: 'admin', ...opts })
+        }
+        it('hides the admin panel for sellers', () => {
+          setupPage({ role: 'seller' })
+          // ...
+        })
+    reason: >
+      A beforeEach hides the arrange step from the test body and forces one shared setup
+      on every case; an explicit setup function keeps setup visible and lets each test
+      pass arguments for its scenario. Relatedly, keep assertions out of intercept/spy
+      callbacks — capture values into a variable and assert them at the end.
