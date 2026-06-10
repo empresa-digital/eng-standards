@@ -1,0 +1,110 @@
+meta:
+  pack: git
+  description: >
+    Git workflow rules — branching, commits, conflict resolution — that survive any
+    shop. House specifics (branch-prefix policy, commit language) live in an org profile.
+  language: en
+
+rules:
+  - id: git-branch-from-updated-main
+    topic: Branching
+    severity: blocker
+    lintable: false
+    sources: [git-006]
+    principle: >
+      Create a branch from an up-to-date main, not from another unmerged feature
+      branch.
+    wrong:
+      description: New branch stacked on an unrelated, unmerged feature branch.
+      code: |
+        git checkout add-create-endpoint
+        git checkout -b add-list-endpoint
+    right:
+      description: Branch from a freshly pulled main.
+      code: |
+        git checkout master
+        git pull
+        git checkout -b add-list-endpoint
+    reason: >
+      Branching off another feature branch couples the two: the second can't merge
+      until the first does, and it inherits the first's review churn.
+
+  - id: git-one-branch-per-task
+    topic: Branching
+    severity: nit
+    lintable: false
+    sources: [git-005]
+    principle: One branch (and PR) per task; its name reflects the whole scope of the change.
+    reason: >
+      Piling unrelated tasks onto one branch produces a sprawling PR that's hard to
+      review and impossible to revert cleanly.
+
+  - id: git-atomic-commits
+    topic: Commits
+    severity: nit
+    lintable: false
+    sources: [git-004]
+    principle: >
+      Each commit is one logical unit of change. Don't mix unrelated changes (a bugfix
+      and a new feature) in one commit, and don't over-fragment changes that only make
+      sense together.
+    reason: >
+      Logical commits make history reviewable, bisectable, and revertable. The balance
+      point: split when a piece stands on its own, keep together when it doesn't.
+
+  - id: git-imperative-commit-messages
+    topic: Commits
+    severity: nit
+    lintable: false
+    sources: [git-002, ge-009]
+    principle: >
+      Commit subjects are concise and start with an imperative-mood verb (Add, Fix,
+      Remove, Update) describing what changed and, when useful, why.
+    wrong:
+      description: Vague, non-descriptive subjects.
+      code: |
+        git commit -m "fix bug"
+        git commit -m "changes"
+        git commit -m "WIP"
+    right:
+      description: Concise, imperative, descriptive.
+      code: |
+        git commit -m "Fix deploy race condition by pulling before push"
+        git commit -m "Change update-firm endpoint from PUT to PATCH and add tests"
+    reason: >
+      A commit subject is the primary index into history. Imperative mood matches git's
+      own generated messages; vagueness forces readers into the diff to learn anything.
+
+  - id: git-clean-history-no-tool-branding
+    topic: Commits
+    severity: nit
+    lintable: false
+    sources: [git-003]
+    principle: >
+      Keep commit messages free of tool branding and auto-added co-authorship
+      (Claude, Copilot, Cursor, "Generated with ...").
+    wrong:
+      code: |
+        Add login flow
+
+        Co-Authored-By: Claude <noreply@anthropic.com>
+        Generated with Claude Code
+    right:
+      code: |
+        Add login flow
+    reason: >
+      History should carry information about the change, not promotional noise about
+      the tooling that produced it.
+
+  - id: git-preserve-merged-code-on-conflict
+    topic: Conflicts
+    severity: blocker
+    lintable: false
+    sources: [ge-008]
+    principle: >
+      When resolving merge conflicts, never drop code that was already merged in
+      earlier PRs — check the file history before deleting a conflicting hunk.
+    reason: >
+      The most damaging conflict-resolution mistake is silently discarding someone
+      else's merged work. Verify against recent history; when unsure, ask the author
+      of the conflicting code.
