@@ -12,6 +12,7 @@ Full design rationale lives in the `ai-assistant` repo:
 universal.yaml          # principles that bind to nothing — travel anywhere
 packs/                  # bind to a language/paradigm — travel to any Go/Vue shop
   backend-go.yaml
+  backend-ts.yaml
   frontend-vue.yaml     # (slice 2)
   database.yaml         # (slice 2)
   infra.yaml            # (slice 2)
@@ -86,6 +87,7 @@ agent.
 
 Agents load **selectively** by the file types in a diff:
 - `.go` change → `universal` + `packs/backend-go` + `packs/testing` + active org
+- `.ts` / `.tsx` change → `universal` + `packs/backend-ts` + `packs/testing` + active org
 - `.vue` change → `universal` + `packs/frontend-vue` + `packs/testing` + active org
 
 The "active org" is the company profile for the current repo (configured in that

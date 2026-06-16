@@ -11,7 +11,7 @@ import yaml
 
 REQUIRED = {"id", "topic", "severity", "sources", "reason"}
 SEVERITIES = {"blocker", "nit"}
-ID_PREFIXES = ("u-", "go-", "vue-", "db-", "infra-", "git-", "test-", "plan-", "ed-")
+ID_PREFIXES = ("u-", "go-", "ts-", "vue-", "db-", "infra-", "git-", "test-", "plan-", "ed-")
 
 
 def main() -> int:

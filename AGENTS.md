@@ -9,6 +9,8 @@ to keep context small:
 
 - `.go` files → `universal.yaml` + `packs/backend-go.yaml` + `packs/testing.yaml`
   + the active org profile
+- `.ts` / `.tsx` files → `universal.yaml` + `packs/backend-ts.yaml` + `packs/testing.yaml`
+  + the active org profile
 - `.vue` / `.js` files → `universal.yaml` + `packs/frontend-vue.yaml` + `packs/testing.yaml`
   + the active org profile
 - SQL / migrations → `universal.yaml` + `packs/database.yaml` + active org profile
