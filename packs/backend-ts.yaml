@@ -575,3 +575,58 @@ rules:
       Consistent casing and a non-redundant name make code scannable; the class qualifier
       (`userService.getUser`) already carries the context. TS-concrete form of
       u-self-explanatory-names.
+  - id: ts-parametrized-test-setup
+    topic: Testing
+    severity: blocker
+    lintable: false
+    sources: [vini-style]
+    principle: >
+      Test-specific starting state is explicit data passed into a per-file setup(args)
+      function, called on the first line of the test — not a fixed global fixture or
+      bare hooks. Like a table test, all starting entities/config are visible at the
+      call site, so changing the setup means changing one function.
+    wrong:
+      description: >
+        A fixed global seed (or a beforeEach) decides the starting users for every test,
+        so the data a test depends on lives somewhere else and is the same for all cases.
+      code: |
+        // one default world for every test
+        beforeEach(async () => {
+          await seedUsers(DEFAULT_USERS) // fixed; same for all tests
+          app = await startApp()
+        })
+
+        it('lists active users', async () => {
+          const res = await fetch(`${baseURL}/users?status=active`)
+          expect((await res.json()).length).toBe(2) // 2 == magic, defined elsewhere
+        })
+    right:
+      description: >
+        A per-file setup({ users }) seeds exactly the passed data and returns handles;
+        the test calls it first and owns its starting state.
+      code: |
+        async function setup(args: { users: User[] }) {
+          const db = await freshDb()
+          await db.insertInto('users').values(args.users).execute()
+          const app = await startApp(db)
+          return { app, db, baseURL: app.url }
+        }
+
+        it('lists only active users', async () => {
+          const { baseURL } = await setup({
+            users: [
+              { id: 1, name: 'Ana', status: 'active' },
+              { id: 2, name: 'Bo', status: 'disabled' },
+            ],
+          })
+
+          const res = await fetch(`${baseURL}/users?status=active`)
+          expect(await res.json()).toEqual([{ id: 1, name: 'Ana', status: 'active' }])
+        })
+    reason: >
+      When starting state is an argument at the call site, each test reads top-to-bottom
+      with no hidden globals, cases that need different worlds don't fight a shared seed,
+      and a setup change is one function edit instead of a hunt through hooks and
+      fixtures. Generic hooks remain correct for shared, non-test-specific infra (e.g.
+      booting the DB container); this rule targets the starting DATA and config a
+      specific test depends on.
