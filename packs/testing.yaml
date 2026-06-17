@@ -285,6 +285,33 @@ rules:
       Co-locating the test keeps it visible and one click away from the code; a separate
       __tests__ tree hides it and complicates navigation.
 
+  - id: test-naming-conventions
+    topic: Organization
+    severity: blocker
+    lintable: false
+    sources: [vini-style]
+    principle: >
+      Name a test after the real unit it tests, and name the test file after the real file
+      it is testing. Split sub-tests inside a test file by feature/function/handler/route
+      but don't split tests in several files if the logic under test is in a single file.
+    wrong:
+      description: >
+        Only one real file exists (process.controller), yet its tests are split into
+        files named after sub-features that have no corresponding module.
+      code: |
+        src/process.controller.ts        # the only controller that exists
+        src/bet.controller.test.ts       # no bet.controller — invented
+        src/balance.controller.test.ts   # no balance.controller — invented
+    right:
+      description: One real module, one co-located test file named after it.
+      code: |
+        src/process.controller.ts
+        src/process.controller.test.ts
+    reason: >
+      A test file's name is a map to the code it covers. Naming tests after modules that
+      don't exist breaks that map and implies structure the codebase doesn't have;
+      One code file ⇒ one test file keeps tests discoverable and honest about the code's actual shape.
+
   - id: test-name-mocked-tests-correctly
     topic: Naming
     severity: nit
