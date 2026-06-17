@@ -158,7 +158,9 @@ rules:
     sources: [te-002, te-005]
     principle: >
       Assert the actual persisted records, not just the API response and not just a row
-      count.
+      count. This applies to operations that WRITE state; for a read-only endpoint or
+      function, asserting the response is sufficient — the read already round-trips
+      through the persistence layer, and there is no write to verify separately.
     wrong:
       description: Trust the response body, or only count rows.
       code: |
@@ -181,7 +183,8 @@ rules:
     reason: >
       A correct response doesn't prove the data was persisted correctly. A count can't
       catch swapped ids or wrong field values. Comparing the real rows does both for
-      little extra effort.
+      little extra effort. A read-only path makes no persistence change, so the response
+      is the thing under test and there is nothing extra to read back.
 
   - id: test-unit-test-complex-logic
     topic: Coverage
