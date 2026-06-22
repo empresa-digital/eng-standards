@@ -105,6 +105,14 @@ Its operating rules:
 - **Gate on recurrence.** Propose a rule only when the same pattern shows up ≥2–3× or is
   high-severity. A one-off is evidence, not yet a rule — **"no new rule this run" is a
   valid, expected outcome.**
+- **Keep a watch list for long-horizon patterns.** Each window only sees ~1 week, so a
+  pattern that recurs once a week for a month would never trip the per-window gate. The open
+  `improvements` issue therefore carries a `Watch list` table (`pattern | first seen | last
+  seen | total | misses`) that persists sub-threshold patterns across runs. Each run: a seen
+  pattern increments `total` and resets `misses` to 0; an unseen one increments `misses`; a
+  row is dropped at `misses ≥ 5` (≈ a month). A pattern also promotes when its cumulative
+  `total ≥ 3` while still active — this is what catches the slow burn. The table is carried
+  verbatim across every issue rotation, so it doubles as the running summary of past issues.
 - **One PR per run, never auto-merged.** Batch every proposal into a single PR; a human
   reviews it and keeps the quality gate.
 - **Rotate the issue open-before-close.** Open the next `improvements` issue, move any
