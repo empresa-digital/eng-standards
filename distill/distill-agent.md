@@ -39,6 +39,13 @@ Read `distill/config.local.json`: `{ repos: [...], last_run: ISO8601 | null }`. 
 Propose a rule **only** when a pattern recurs (≥2–3× across the inputs) **or** is clearly
 high-severity. A one-off is evidence, not yet a rule. Most weeks legitimately produce nothing.
 
+**Dedup against the existing library first.** Before proposing anything, grep the current
+packs (`universal.yaml`, `packs/*.yaml`, the active `orgs/*.yaml`) for a rule that already
+covers the pattern. If one exists, do **not** re-propose it — at most note in the PR body
+that an existing rule (`<id>`) should be clarified or strengthened, and only if the evidence
+clearly warrants it. The top failure mode of this whole system is re-adding what already
+exists; spend the effort to check.
+
 ## Step 4a — nothing qualifies
 
 Set `last_run` to now in `config.local.json`. Output:
