@@ -84,33 +84,3 @@ rules:
     reason: >
       A composite PK only indexes its leading column efficiently. A non-leading column
       that was previously its own PK silently loses index support and slows its queries.
-
-  - id: db-enforce-integrity-with-constraints
-    topic: Modeling
-    severity: blocker
-    lintable: false
-    sources: ["pr-review#420,454,482"]
-    principle: >
-      Enforce data-integrity invariants with database constraints (FOREIGN KEY, UNIQUE,
-      NOT NULL), not application code alone. When you rely on a relationship or
-      uniqueness invariant, confirm the constraint exists and add it if it doesn't.
-    wrong:
-      description: A reference column with no foreign key and a bogus default, relying on app code.
-      code: |
-        CREATE TABLE documents (
-            id serial PRIMARY KEY,
-            item_id int NOT NULL DEFAULT 0  -- no FK; nothing stops an orphan id
-        );
-    right:
-      description: A real foreign key (and drop the default), so the database rejects orphans.
-      code: |
-        DELETE FROM documents WHERE item_id = 0;
-        ALTER TABLE documents
-            ALTER COLUMN item_id DROP DEFAULT,
-            ADD CONSTRAINT documents_item_id_fkey
-                FOREIGN KEY (item_id) REFERENCES diligence_items(id);
-    reason: >
-      Application checks can be bypassed by another code path or a manual query; a
-      constraint makes the invalid state impossible at the storage layer and documents
-      the relationship. If you find yourself adding a DISTINCT or an app-side dedupe to
-      compensate for missing uniqueness, add a UNIQUE constraint instead.

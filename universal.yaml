@@ -238,8 +238,8 @@ rules:
     lintable: false
     sources: ["pr-review#406,426,480,501"]
     principle: >
-      When a value arrives wrong from another layer or service, fix it where it
-      originates — don't compensate for it in the consumer.
+      When a value arrives wrong from another layer or service that your team owns,
+      fix it where it originates — don't compensate for it in the consumer.
     wrong:
       description: A consumer patches data the producing layer should have sent correctly.
       code: |

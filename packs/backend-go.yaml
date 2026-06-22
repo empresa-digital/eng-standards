@@ -467,32 +467,53 @@ rules:
       so every caller benefits instead of each one guarding against null, and cover the
       empty-result case with a test.
 
-  - id: go-minimize-db-roundtrips
+  - id: go-no-query-in-loop
     topic: Performance
     severity: blocker
     lintable: false
     sources: ["pr-review#403,436,481,501"]
     principle: >
-      Don't query in a loop or split one logical check across several round-trips.
-      Express it as a single set-based query.
+      Never query a datastore inside a loop (the N+1 pattern). Fetch every row you need in
+      one set-based query.
     wrong:
-      description: A per-item query in a loop, and two separate existence checks.
+      description: A per-item query in a loop — one network round-trip per element.
       code: |
         for _, id := range itemIDs {
           item, _ := c.repo.GetItem(ctx, id) // one round-trip per item
           results = append(results, item)
         }
-
-        // elsewhere: two queries to validate one request
-        diligence, err := c.repo.GetDiligence(ctx, diligenceID)
-        item, err := c.repo.GetItem(ctx, itemID)
     right:
-      description: One set-based query covering all the rows / all the conditions.
+      description: One set-based query covering all the rows.
       code: |
         err := c.db.Query(ctx, &results,
           "FROM items WHERE id = ANY($1) ORDER BY id", itemIDs)
+    reason: >
+      A query per iteration pays the full pod-to-datastore round-trip every time, so cost
+      scales with the data and latency dominates the work — a real performance bug, not a
+      style preference. Applies to any networked datastore, not just SQL.
+    solution: >
+      Fetch the whole set at once. This usually means adding a new repo method (e.g. a
+      batched `ListByIDs`), or extending an existing method that already returns an entity
+      to also return the related rows it naturally owns (a DDD aggregate), instead of
+      looping over a single-item call.
 
-        // single existence check joining the tables
+  - id: go-combine-sequential-repo-queries
+    topic: Performance
+    severity: nit
+    lintable: false
+    sources: ["pr-review#403,436,481,501"]
+    principle: >
+      Inside the repo layer, prefer collapsing several sequential queries that answer one
+      logical question into a single set-based query (a JOIN or `IN`) — when it doesn't
+      cost clarity.
+    wrong:
+      description: Two separate round-trips to validate one request.
+      code: |
+        diligence, err := c.repo.GetDiligence(ctx, diligenceID)
+        item, err := c.repo.GetItem(ctx, itemID)
+    right:
+      description: A single existence check joining the tables.
+      code: |
         var count struct{ Count int `ksql:"c"` }
         err = c.db.QueryOne(ctx, &count,
           `SELECT count(*) AS c
@@ -502,10 +523,12 @@ rules:
           WHERE d.firm_id = $1
             AND di.id = $2`, firmID, itemID)
     reason: >
-      Each query pays the full network round-trip from the pod to the datastore and
-      back; for simple checks that latency dominates the work. Collapsing N queries into
-      one (a JOIN, an `ANY`/`IN`, or a single set-based statement) is faster and usually
-      less code. Applies to any networked datastore, not just SQL.
+      Fewer round-trips is cheaper, but this is a judgment call, not an absolute — hence a
+      nit, unlike the N+1 loop. It applies only inside the repo layer, where raw queries
+      belong (callers above the repo must not write them). Weigh the tradeoff: several
+      simple sequential calls are fine when they read more clearly than one combined query;
+      but inside a transaction or a perf-sensitive path, saving a round-trip can justify a
+      slightly more complex query.
 
   - id: go-no-durable-state-in-memory
     topic: Architecture
