@@ -98,6 +98,10 @@ Its two inputs:
 
 Its operating rules:
 
+- **Skip the run if a proposal PR is still open.** Before reading anything else, check for an
+  open distill PR; if one exists, stop — don't review, don't open a second PR. Let the human
+  catch up on the pending one first, or proposals pile up and the reviewer tunes them out.
+  (This check goes first precisely so a backed-up queue costs almost no tokens.)
 - **Gate on recurrence.** Propose a rule only when the same pattern shows up ≥2–3× or is
   high-severity. A one-off is evidence, not yet a rule — **"no new rule this run" is a
   valid, expected outcome.**
