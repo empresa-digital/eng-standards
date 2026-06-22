@@ -1,0 +1,41 @@
+meta:
+  pack: testing-js
+  description: >
+    Test-design rules specific to the JavaScript/TypeScript test ecosystem (Jest, Vitest,
+    Mocha, Cypress, and similar). These do NOT travel to languages with different idioms —
+    e.g. Go, where table-driven tests are the norm. Loaded for `.js`/`.ts`/`.vue` changes
+    alongside the framework-agnostic `testing` pack.
+  language: en
+
+rules:
+  - id: test-explicit-setup-over-hooks
+    topic: Structure
+    severity: nit
+    lintable: false
+    sources: ["pr-review#481"]
+    principle: >
+      Prefer an explicit setup function each test calls (e.g. setupPage(), setupComponent())
+      over a beforeEach hook, so setup is visible in the test and can take per-case overrides.
+    wrong:
+      description: A beforeEach hides setup and forces one shape on every test.
+      code: |
+        beforeEach(() => {
+          mountPage({ role: 'admin' })
+        })
+        it('shows the admin panel', () => { /* ... */ })
+    right:
+      description: An explicit setup function the test calls with the overrides it needs.
+      code: |
+        function setupPage(opts = {}) {
+          mountPage({ role: 'admin', ...opts })
+        }
+        it('hides the admin panel for sellers', () => {
+          setupPage({ role: 'seller' })
+          // ...
+        })
+    reason: >
+      A beforeEach hides the arrange step from the test body and forces one shared setup
+      on every case; an explicit setup function keeps setup visible and lets each test
+      pass arguments for its scenario. This is a JS/TS-ecosystem rule: it does not apply to
+      Go, where table-driven tests are idiomatic. Relatedly, keep assertions out of
+      intercept/spy callbacks — capture values into a variable and assert them at the end.
