@@ -169,6 +169,40 @@ rules:
       is not to name the thing at all — inline it; other times a poorly-named function
       should be split into several well-named ones.
 
+  - id: u-routes-english-names
+    topic: Naming
+    severity: blocker
+    lintable: false
+    sources: [fe-routes-i18n]
+    principle: >
+      Name URL paths — frontend routes and backend API endpoints alike — in
+      English, never in the team's native language, even when the product copy is
+      localized.
+    wrong:
+      description: Route/endpoint segments are written in Portuguese.
+      code: |
+        // frontend router
+        { path: '/empresas/:id/diligencias', name: 'diligencias' }
+        // backend route
+        router.get('/empresas/:id/diligencias', listDiligences)
+    right:
+      description: Paths are English; only the rendered/returned copy is localized.
+      code: |
+        // frontend router
+        { path: '/firms/:id/diligences', name: 'diligences' }
+        // backend route
+        router.get('/firms/:id/diligences', listDiligences)
+    reason: >
+      English paths stay readable for every developer and survive
+      internationalization: a native-language URL becomes a misleading artifact
+      once the product ships in other languages, while localized strings belong in
+      the i18n layer, not the route. Mixed-language paths also fracture naming
+      conventions across the router/API. It is cheap to get right up front and
+      expensive to rename once links, bookmarks, and clients depend on it.
+    solution: >
+      Keep all route paths, route names, params, and API endpoint segments in
+      English; translate only user-facing strings through the i18n layer.
+
   - id: u-document-copied-source
     topic: Provenance
     severity: nit
