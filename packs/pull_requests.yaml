@@ -1,0 +1,55 @@
+meta:
+  pack: pull-requests
+  description: >
+    How pull requests communicate intent — descriptions, titles, scope. The diff is the
+    source of truth; the PR is the index into it. Platform-agnostic (GitHub/GitLab/etc).
+    House specifics (language, AI disclosure, approval policy) live in an org profile.
+  language: en
+
+rules:
+  - id: pr-description-general-not-file-by-file
+    topic: Pull Requests
+    severity: nit
+    lintable: false
+    sources: [pr-001]
+    principle: >
+      A PR description states in general terms what changed and why. It never paraphrases
+      the code file-by-file or lists per-file changes — the diff already says that.
+    wrong:
+      description: >
+        Body narrates the diff file by file, duplicating what the reviewer is about to read.
+      code: |
+        ## Changes
+        - `user_service.go`: added `GetActiveUsers`, which loops over users and filters by status
+        - `user_repo.go`: added `findByStatus` running `SELECT * FROM users WHERE status = $1`
+        - `user_service_test.go`: added a test for the new method
+        - `routes.go`: registered `GET /users/active`
+    right:
+      description: >
+        Body is one/two lines of intent (what + why); the diff carries the rest. A
+        decision that might raise a reviewer doubt goes as an inline PR comment on the
+        relevant lines, not as prose in the body.
+      code: |
+        # PR body
+        Add an endpoint to list active users, needed by the new admin dashboard.
+
+        # Inline PR comment, left by the author on the WHERE clause in user_repo.go:
+        Filtering in SQL rather than in Go so it stays cheap as the table grows.
+    reason: >
+      File-by-file narration duplicates the diff, rots the moment the code moves, and
+      forces the reviewer to read the same change twice. A general summary of intent is
+      the one thing the diff can't convey on its own. Decision rationale belongs next to
+      the code it explains — an inline PR comment puts it exactly where the reviewer's
+      doubt arises, instead of in a body section they must mentally map back to the diff.
+    solution: >
+      Open the body with a one/two-line summary of what changed and why. When some code
+      could raise a reviewer doubt and there's no clear code comment already covering it,
+      leave a comment on the PR — preferably inline on the relevant lines — explaining the
+      decision. Skip the PR comment when the code already carries a clear comment at that
+      point (the code is the better home for a decision when it fits there; the inline PR
+      comment is for rationale you don't want to bake into the source).
+      Inline PR comments are posted through the platform's review API, not the basic
+      "add comment" command — don't conclude it's impossible because the simple command
+      lacks a line flag. On GitHub: `gh api repos/{owner}/{repo}/pulls/{n}/comments`
+      (fields: body, commit_id, path, line, side), or batch many in one review via
+      `.../pulls/{n}/reviews`. `gh pr comment` only posts top-level comments.

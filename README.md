@@ -17,6 +17,7 @@ packs/                  # bind to a language/paradigm — travel to any Go/Vue s
   database.yaml         # (slice 2)
   infra.yaml            # (slice 2)
   git.yaml              # (slice 2)
+  pull_requests.yaml    # PR description / title / scope conventions
   testing.yaml          # (slice 2)
   planning.yaml         # (slice 2)
 orgs/                   # bind to a tool OR a house convention — do NOT travel
@@ -89,6 +90,12 @@ Agents load **selectively** by the file types in a diff:
 - `.go` change → `universal` + `packs/backend-go` + `packs/testing` + active org
 - `.ts` / `.tsx` change → `universal` + `packs/backend-ts` + `packs/testing` + active org
 - `.vue` change → `universal` + `packs/frontend-vue` + `packs/testing` + active org
+
+Some packs bind to a **workflow stage**, not a file type, so they load by review
+context rather than by extension:
+- planning a change → `packs/planning`
+- writing commits / opening a PR → `packs/git` + `packs/pull_requests`
+- infra/IaC changes → `packs/infra`
 
 The "active org" is the company profile for the current repo (configured in that
 repo's `AGENTS.md`). This keeps context small and avoids the "long guidance file
