@@ -158,7 +158,9 @@ rules:
     sources: [te-002, te-005]
     principle: >
       Assert the actual persisted records, not just the API response and not just a row
-      count.
+      count. This applies to operations that WRITE state; for a read-only endpoint or
+      function, asserting the response is sufficient — the read already round-trips
+      through the persistence layer, and there is no write to verify separately.
     wrong:
       description: Trust the response body, or only count rows.
       code: |
@@ -181,7 +183,8 @@ rules:
     reason: >
       A correct response doesn't prove the data was persisted correctly. A count can't
       catch swapped ids or wrong field values. Comparing the real rows does both for
-      little extra effort.
+      little extra effort. A read-only path makes no persistence change, so the response
+      is the thing under test and there is nothing extra to read back.
 
   - id: test-unit-test-complex-logic
     topic: Coverage
@@ -282,6 +285,33 @@ rules:
       Co-locating the test keeps it visible and one click away from the code; a separate
       __tests__ tree hides it and complicates navigation.
 
+  - id: test-naming-conventions
+    topic: Organization
+    severity: blocker
+    lintable: false
+    sources: [vini-style]
+    principle: >
+      Name a test after the real unit it tests, and name the test file after the real file
+      it is testing. Split sub-tests inside a test file by feature/function/handler/route
+      but don't split tests in several files if the logic under test is in a single file.
+    wrong:
+      description: >
+        Only one real file exists (process.controller), yet its tests are split into
+        files named after sub-features that have no corresponding module.
+      code: |
+        src/process.controller.ts        # the only controller that exists
+        src/bet.controller.test.ts       # no bet.controller — invented
+        src/balance.controller.test.ts   # no balance.controller — invented
+    right:
+      description: One real module, one co-located test file named after it.
+      code: |
+        src/process.controller.ts
+        src/process.controller.test.ts
+    reason: >
+      A test file's name is a map to the code it covers. Naming tests after modules that
+      don't exist breaks that map and implies structure the codebase doesn't have;
+      One code file ⇒ one test file keeps tests discoverable and honest about the code's actual shape.
+
   - id: test-name-mocked-tests-correctly
     topic: Naming
     severity: nit
@@ -299,3 +329,48 @@ rules:
     reason: >
       By definition E2E doesn't mock the backend. Mislabeling it sets the wrong
       expectation about what coverage actually exists.
+
+  - id: test-prefer-inline-literals
+    topic: Readability
+    severity: nit
+    lintable: false
+    sources: [fe-022]
+    principle: >
+      Inline a literal at its single call site instead of extracting it to a
+      module-level constant. A reader scanning the test should see WHICH route, payload,
+      or value is exercised — not a "${NAME}" they must scroll up to resolve. Extract
+      only when the value is reused across tests or genuinely needs a name to be
+      understood.
+    wrong:
+      description: >
+        Single-use literals hoisted to top-of-file constants; the assertion reads
+        "${ROUTE}" and "${RAW_BODY}", hiding what is actually under test.
+      code: |
+        const ROUTE = '/aggregator/takehome/process'
+        const RAW_BODY = '{"id":"abc","amount":100,"currency":"USD"}'
+
+        it('processes the payload', async () => {
+          const res = await app.inject({ method: 'POST', url: ROUTE, payload: RAW_BODY })
+          expect(res.statusCode).toBe(200)
+        })
+    right:
+      description: >
+        The route and body sit at the call site; the test is readable top-to-bottom
+        with no scroll-up.
+      code: |
+        it('processes the payload', async () => {
+          const res = await app.inject({
+            method: 'POST',
+            url: '/aggregator/takehome/process',
+            payload: '{"id":"abc","amount":100,"currency":"USD"}',
+          })
+          expect(res.statusCode).toBe(200)
+        })
+    reason: >
+      A "${ROUTE}" / "${RAW_BODY}" indirection forces the reader to jump to the top of
+      the file to learn which endpoint and payload the test exercises; the literal at
+      the call site states it directly. This complements test-inline-fixtures (pull data
+      out of external files) by resisting the opposite over-correction — extracting
+      single-use, self-evident literals into named constants that read worse than the
+      value itself. Promote to a constant only on reuse or when a name adds real meaning
+      (see test-descriptive-fixture-names).

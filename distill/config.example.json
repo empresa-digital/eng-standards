@@ -1,0 +1,8 @@
+{
+  "_comment": "Copy to config.local.json (gitignored) and fill in real repos. The distill agent reads config.local.json. Private repo names must stay out of git.",
+  "repos": [
+    "owner/eng-standards",
+    "owner/some-private-repo"
+  ],
+  "last_run": null
+}

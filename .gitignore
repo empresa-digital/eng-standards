@@ -1,3 +1,6 @@
 __pycache__/
 *.pyc
 .DS_Store
+
+# Distill run state — lists private repo names + last-run watermark. Local only.
+distill/config.local.json

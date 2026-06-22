@@ -1,0 +1,633 @@
+meta:
+  pack: backend-ts
+  description: >
+    Node.js + TypeScript (strict) + hexagonal-architecture rules that survive any TS
+    backend shop. Examples use Fastify, Kysely and pg, but the principles travel.
+    Tool-specific conventions (ORM, validation lib, test helpers) live in an org
+    profile, not here.
+  language: en
+
+rules:
+  - id: ts-no-passthrough-service
+    topic: Architecture
+    severity: nit
+    lintable: false
+    sources: ["backend-go#go-no-passthrough-service"]
+    principle: >
+      Don't add a service method that only forwards to the repository. Call the
+      repository directly from the controller.
+    wrong:
+      description: Service method that adds nothing over the repo call.
+      code: |
+        class UserService {
+          constructor(private readonly repo: UserRepo) {}
+
+          getUser(id: number): Promise<User> {
+            return this.repo.getUser(id)
+          }
+        }
+    right:
+      description: Controller calls the repository directly.
+      code: |
+        async function getUserHandler(req: FastifyRequest, repo: UserRepo) {
+          const user = await repo.getUser(req.params.id)
+          // ...
+        }
+    reason: A layer that only delegates adds complexity without value.
+
+  - id: ts-adapters-return-domain-errors
+    topic: Architecture
+    severity: blocker
+    lintable: false
+    sources: ["backend-go#go-adapters-return-domain-errors", "universal#u-translate-at-external-boundaries"]
+    principle: >
+      Adapters translate library/driver errors (pg, Kysely) into domain errors. Callers
+      must not need to know adapter-specific error types or codes.
+    wrong:
+      description: Leak a driver-specific error (a raw Postgres error code) out of the adapter.
+      code: |
+        async getUser(id: number): Promise<User> {
+          // a pg unique_violation (code '23505') bubbles straight to the caller
+          return this.db.selectFrom('users').where('id', '=', id)
+            .selectAll().executeTakeFirstOrThrow()
+        }
+    right:
+      description: Translate the driver error into a domain error at the adapter boundary.
+      code: |
+        async getUser(id: number): Promise<User> {
+          const user = await this.db.selectFrom('users').where('id', '=', id)
+            .selectAll().executeTakeFirst()
+          if (!user) throw new NotFoundError('user not found')
+          return user
+        }
+    reason: >
+      The whole point of an adapter is to translate external complexity into the domain
+      language, so the rest of the code handles/propagates errors without importing pg or
+      Kysely error types. This is the TS-concrete form of u-translate-at-external-boundaries.
+
+  - id: ts-inject-port-not-client
+    topic: Architecture
+    severity: blocker
+    lintable: false
+    sources: ["backend-go#go-inject-repo-not-db"]
+    principle: >
+      Inject the repository/port interface into controllers, not the raw pg Pool or
+      Kysely instance.
+    wrong:
+      description: Controller depends on the concrete database client.
+      code: |
+        class UsersController {
+          constructor(private readonly db: Kysely<DB>) {}
+        }
+    right:
+      description: Controller depends on the port interface.
+      code: |
+        interface UserRepo {
+          getUser(id: number): Promise<User>
+        }
+
+        class UsersController {
+          constructor(private readonly repo: UserRepo) {}
+        }
+    reason: >
+      Injecting the port keeps separation of responsibilities and lets tests substitute a
+      fake repo without standing up a database.
+
+  - id: ts-convert-types-at-boundaries
+    topic: Architecture
+    severity: blocker
+    lintable: false
+    sources: ["backend-go#go-convert-types-at-boundaries", "universal#u-translate-at-external-boundaries"]
+    principle: >
+      Parse external strings into Date, number, or domain enums at the adapter/controller
+      boundary. Don't pass loosely-typed strings inward; a conversion in the middle of
+      business logic signals the boundary returned the wrong type.
+    wrong:
+      description: A raw string flows inward and is converted mid-logic.
+      code: |
+        const startsAt = req.body.startsAt as string // still a string
+        // ... later, deep in a service:
+        if (new Date(startsAt) < new Date()) { /* ... */ }
+    right:
+      description: Parse into the domain type at the boundary; inner code uses Date.
+      code: |
+        const startsAt = new Date(req.body.startsAt)
+        if (Number.isNaN(startsAt.getTime())) {
+          throw new BadRequestError('startsAt must be a valid ISO date')
+        }
+        // inner code receives a Date and a parsed enum, never a raw string
+        scheduleMeeting({ startsAt, role: parseRole(req.body.role) })
+    reason: >
+      Boundaries own conversion; the rest of the code works with high-level domain types.
+      TS-concrete form of u-translate-at-external-boundaries.
+
+  - id: ts-validate-on-entity
+    topic: Validation
+    severity: blocker
+    lintable: false
+    sources: ["backend-go#go-validate-method-on-entity", "universal#u-invariants-in-business-layer"]
+    principle: >
+      Entity validation lives on the entity — a validate() method or a schema colocated
+      with the entity — not inline in the controller.
+    wrong:
+      description: Invariant checked inline in the handler.
+      code: |
+        async function createPartyHandler(req: FastifyRequest) {
+          const party = req.body as Party
+          if (!party.canonicalId) {
+            throw new BadRequestError('canonicalId required')
+          }
+          // ...
+        }
+    right:
+      description: The invariant lives with the entity; the handler just calls it.
+      code: |
+        class Party {
+          constructor(readonly canonicalId: string) {}
+
+          validate(): void {
+            if (!this.canonicalId) {
+              throw new BadRequestError('canonicalId required')
+            }
+          }
+        }
+        // handler, after DTO -> entity:
+        party.validate()
+    reason: >
+      Centralizes validation, avoids duplication across controllers, and makes it unit
+      testable. TS-concrete form of u-invariants-in-business-layer.
+
+  - id: ts-integrity-checks-in-adapter
+    topic: Architecture
+    severity: blocker
+    lintable: false
+    sources: ["backend-go#go-integrity-checks-in-adapter", "universal#u-invariants-in-business-layer"]
+    principle: >
+      Data-integrity rules belong in the repository/adapter, not the controller — another
+      caller could reach the adapter and bypass a controller-side check.
+    wrong:
+      description: Integrity rule guarded only in the controller.
+      code: |
+        // controller
+        if (memberId === firm.ownerId) {
+          throw new BadRequestError('cannot remove owner')
+        }
+        await repo.removeFirmMember(firmId, memberId)
+    right:
+      description: The rule lives inside the repository method that performs the write.
+      code: |
+        // repository
+        async removeFirmMember(firmId: number, userId: number): Promise<void> {
+          const firm = await this.getFirm(firmId)
+          if (userId === firm.ownerId) {
+            throw new BadRequestError('cannot remove owner')
+          }
+          await this.db.deleteFrom('firm_members')
+            .where('firm_id', '=', firmId).where('user_id', '=', userId).execute()
+        }
+    reason: >
+      The adapter is responsible for making valid writes to the store, so the check must
+      live where every caller passes through it, not in one controller another route can
+      bypass and corrupt the data.
+
+  - id: ts-no-model-fragmentation
+    topic: Modeling
+    severity: blocker
+    lintable: false
+    sources: ["backend-go#go-no-model-fragmentation", "universal#u-reuse-before-adding", "universal#u-one-source-of-truth"]
+    principle: >
+      Don't create a parallel interface with the same fields as an existing entity. Add
+      the missing field to the entity (optional if situational) instead.
+    wrong:
+      description: A second interface mirroring the entity's shape.
+      code: |
+        interface User { id: number; name: string; email: string }
+        interface FirmUserRow { id: number; name: string; email: string; role: string }
+    right:
+      description: Extend the entity with the additional, optional field.
+      code: |
+        interface User {
+          id: number
+          name: string
+          email: string
+          role?: FirmRole // additive, present only in the firm-membership context
+        }
+    reason: >
+      Parallel interfaces fragment the domain model and every read must keep them in sync.
+      TS-concrete form of u-reuse-before-adding and u-one-source-of-truth.
+
+  - id: ts-minimize-db-roundtrips
+    topic: Performance
+    severity: blocker
+    lintable: false
+    sources: ["backend-go#go-minimize-db-roundtrips"]
+    principle: >
+      Don't query in a loop or split one logical check across several round-trips.
+      Express it as a single set-based query.
+    wrong:
+      description: One query per id inside a loop.
+      code: |
+        const items: Item[] = []
+        for (const id of itemIds) {
+          const item = await repo.getItem(id) // one round-trip per id
+          items.push(item)
+        }
+    right:
+      description: One set-based query for all ids.
+      code: |
+        const items = await db.selectFrom('items')
+          .where('id', '=', sql<number>`ANY(${itemIds})`)
+          .selectAll()
+          .orderBy('id')
+          .execute()
+    reason: >
+      Each query pays the full network round-trip from the pod to the datastore; for
+      simple lookups that latency dominates. Collapsing N queries into one (a JOIN or an
+      `ANY`/`IN`) is faster and usually less code.
+
+  - id: ts-no-durable-state-in-memory
+    topic: Architecture
+    severity: blocker
+    lintable: false
+    sources: ["backend-go#go-no-durable-state-in-memory"]
+    principle: >
+      Don't keep state that must survive across requests in module-level memory. Pods are
+      ephemeral — persist it to an external store.
+    wrong:
+      description: Per-user history kept in a module-level map; lost on restart and not shared across replicas.
+      code: |
+        const chatHistory = new Map<number, Message[]>() // in-process, per-pod
+
+        function appendMessage(userId: number, m: Message): void {
+          const list = chatHistory.get(userId) ?? []
+          chatHistory.set(userId, [...list, m])
+        }
+    right:
+      description: Read and write the state from a shared external store.
+      code: |
+        async function appendMessage(userId: number, m: Message): Promise<void> {
+          await historyStore.append(userId, m) // e.g. cache/db
+        }
+    reason: >
+      Containers restart for deploys, rebalancing, or crashes at any time, dropping
+      in-memory state — and a module-level map is not shared across replicas. Anything
+      that must outlive a single request (sessions, history, tokens, dedup keys) belongs
+      in a shared external store.
+
+  - id: ts-dtos-near-their-port
+    topic: Architecture
+    severity: nit
+    lintable: false
+    sources: ["backend-go#go-dtos-near-their-interface"]
+    principle: >
+      A DTO used by a single port is declared right next to that interface, not buried in
+      an adapter implementation file.
+    wrong:
+      description: The interface references a type imported from an adapter module.
+      code: |
+        import { Message } from './adapters/sns-provider'
+
+        interface NotificationProvider {
+          send(msg: Message): Promise<void>
+        }
+    right:
+      description: The DTO is colocated with the interface it belongs to.
+      code: |
+        interface NotificationProvider {
+          send(msg: Message): Promise<void>
+        }
+
+        interface Message {
+          to: string
+          body: string
+        }
+    reason: >
+      DTOs are part of the interface contract. Separating them hurts readability and can
+      cause import cycles between the port and its adapter.
+
+  - id: ts-avoid-any-use-unknown
+    topic: Types
+    severity: blocker
+    lintable: true
+    sources: [vini-style]
+    principle: >
+      Avoid `any`; it disables type checking. Use `unknown` plus narrowing, and rely on
+      tsconfig `strict`/`noImplicitAny`.
+    wrong:
+      description: "`any` lets unchecked access through and silences real errors."
+      code: |
+        function parse(input: any) {
+          return input.value.toUpperCase() // no check; explodes at runtime
+        }
+    right:
+      description: "`unknown` forces a narrowing check before use."
+      code: |
+        function parse(input: unknown): string {
+          if (typeof input === 'object' && input !== null && 'value' in input
+            && typeof input.value === 'string') {
+            return input.value.toUpperCase()
+          }
+          throw new BadRequestError('expected { value: string }')
+        }
+    reason: >
+      `any` opts a value out of the type system entirely, so errors surface at runtime in
+      production instead of at compile time. `unknown` keeps the value opaque until you
+      prove its shape.
+
+  - id: ts-no-floating-promises
+    topic: Async
+    severity: blocker
+    lintable: true
+    sources: [vini-style]
+    principle: >
+      Await every promise or explicitly `void` it. Never drop a promise on the floor — an
+      unhandled rejection is swallowed and the error is lost.
+    wrong:
+      description: The promise is neither awaited nor voided; a rejection is silently lost.
+      code: |
+        function handler(req: FastifyRequest) {
+          repo.recordAudit(req.user.id) // floating: errors vanish, ordering undefined
+          return { ok: true }
+        }
+    right:
+      description: Await it (or `void` it deliberately if fire-and-forget is intended).
+      code: |
+        async function handler(req: FastifyRequest) {
+          await repo.recordAudit(req.user.id)
+          return { ok: true }
+        }
+    reason: >
+      A floating promise swallows rejections, breaks ordering guarantees, and can crash
+      the process on an unhandled rejection. Awaiting (or an explicit `void` for true
+      fire-and-forget) states the intent. Enforceable via @typescript-eslint/no-floating-promises.
+
+  - id: ts-error-cause-not-stringify
+    topic: Errors
+    severity: nit
+    lintable: false
+    sources: ["backend-go#go-wrap-errors-not-stringify"]
+    principle: >
+      Preserve the original error: `throw new DomainError(msg, { cause: err })`. Don't
+      stringify `err.message` early and discard the stack/chain.
+    wrong:
+      description: The original error and its stack are lost to a string.
+      code: |
+        try {
+          await repo.createUser(user)
+        } catch (err) {
+          throw new InternalError(`failed to create user: ${(err as Error).message}`)
+        }
+    right:
+      description: Chain the cause so the original error and stack survive.
+      code: |
+        try {
+          await repo.createUser(user)
+        } catch (err) {
+          throw new InternalError('failed to create user', { cause: err })
+        }
+    reason: >
+      Passing the error via `cause` preserves the stack and lets callers inspect/unwrap
+      it; stringifying `err.message` early throws away that context. TS-concrete form of
+      go-wrap-errors-not-stringify.
+
+  - id: ts-prefer-async-await
+    topic: Async
+    severity: nit
+    lintable: false
+    sources: [vini-style]
+    principle: >
+      Prefer async/await over `.then()`/`.catch()` chains for control flow and error
+      handling.
+    wrong:
+      description: A promise chain that obscures control flow.
+      code: |
+        function getProfile(id: number): Promise<Profile> {
+          return repo.getUser(id)
+            .then((user) => repo.getSettings(user.id)
+              .then((settings) => ({ user, settings })))
+            .catch((err) => { throw new InternalError('failed', { cause: err }) })
+        }
+    right:
+      description: Linear async/await reads top to bottom.
+      code: |
+        async function getProfile(id: number): Promise<Profile> {
+          try {
+            const user = await repo.getUser(id)
+            const settings = await repo.getSettings(user.id)
+            return { user, settings }
+          } catch (err) {
+            throw new InternalError('failed', { cause: err })
+          }
+        }
+    reason: >
+      Await reads top-to-bottom, keeps error handling in a single try/catch, and avoids
+      the nesting and lost-return pitfalls of `.then()` chains.
+
+  - id: ts-avoid-nonnull-and-unchecked-cast
+    topic: Types
+    severity: nit
+    lintable: true
+    sources: [vini-style]
+    principle: >
+      Avoid `!` non-null assertions and `as` casts except at a validated boundary. They
+      assert facts the compiler can't verify and hide real null/shape bugs.
+    wrong:
+      description: A non-null assertion and a blind cast paper over unproven assumptions.
+      code: |
+        const user = users.find((u) => u.id === id)!
+        const body = req.body as CreateUserInput
+        return user.email
+    right:
+      description: Check the value, and validate at the boundary instead of casting.
+      code: |
+        const user = users.find((u) => u.id === id)
+        if (!user) throw new NotFoundError('user not found')
+        const body = createUserSchema.parse(req.body) // validated -> typed
+        return user.email
+    reason: >
+      `!` and `as` bypass the type system based on an assumption; when the assumption is
+      wrong you get a runtime crash instead of a compile error. Narrow with a real check,
+      and convert to a typed value via validation at the boundary.
+
+  - id: ts-model-required-vs-optional-honestly
+    topic: Modeling
+    severity: nit
+    lintable: false
+    sources: ["backend-go#go-zero-value-over-pointer"]
+    principle: >
+      Don't mark a field optional or `| undefined` just to mean "absent" when it is
+      actually always required. Make required fields required.
+    wrong:
+      description: quantity is conceptually required, but typed optional, forcing nil-checks everywhere.
+      code: |
+        interface OrderItem {
+          quantity?: number // every reader must now handle undefined
+        }
+    right:
+      description: Required field is required; reject invalid values in validation.
+      code: |
+        interface OrderItem {
+          quantity: number // 0 / negative rejected by validate(), never "unset"
+        }
+    reason: >
+      An undeserved `?` spreads optional-chaining and `undefined` checks through every
+      consumer and lies about the contract. Keep optional only for fields that are
+      genuinely sometimes absent. TS reframe of go-zero-value-over-pointer.
+
+  - id: ts-return-empty-array-not-null
+    topic: API
+    severity: nit
+    lintable: false
+    sources: ["backend-go#go-initialize-empty-slices-for-json"]
+    principle: >
+      A repository returning a collection returns `[]` for the empty case, never null or
+      undefined, so it serializes to `[]` and not `null`.
+    wrong:
+      description: The empty case can return null/undefined and break array consumers.
+      code: |
+        async function listComments(itemId: number): Promise<Comment[] | null> {
+          const rows = await db.selectFrom('comments')
+            .where('item_id', '=', itemId).selectAll().execute()
+          return rows.length ? rows : null // empty -> null -> JSON: "comments": null
+        }
+    right:
+      description: Always return the array; the empty case is [].
+      code: |
+        async function listComments(itemId: number): Promise<Comment[]> {
+          return db.selectFrom('comments')
+            .where('item_id', '=', itemId).selectAll().execute()
+        }
+    reason: >
+      `null` for a collection commonly breaks front-end code that expects to iterate. Fix
+      it at the repository layer so every caller benefits, and cover the empty case with a
+      test.
+
+  - id: ts-dates-serialize-iso
+    topic: API
+    severity: nit
+    lintable: false
+    sources: ["backend-go#go-time-json-default-format"]
+    principle: >
+      Let `JSON.stringify` emit ISO 8601 from a `Date`; don't hand-format dates. Parse
+      incoming ISO strings into `Date` at the boundary.
+    wrong:
+      description: Hand-formatting the date risks an inconsistent custom format.
+      code: |
+        return { createdAt: doc.createdAt.toISOString().slice(0, 10) }
+    right:
+      description: Return the Date; the serializer emits ISO consistently.
+      code: |
+        return { createdAt: doc.createdAt } // JSON.stringify -> "2026-06-16T..."
+    reason: >
+      `Date.toJSON` already emits RFC 3339 / ISO 8601; hand-formatting risks an
+      inconsistent shape across endpoints. Parse incoming ISO into a `Date` at the
+      boundary (see ts-convert-types-at-boundaries).
+
+  - id: ts-json-camelcase
+    topic: API
+    severity: nit
+    lintable: true
+    sources: ["backend-go#go-json-camelcase"]
+    principle: JSON field names use camelCase.
+    wrong:
+      code: |
+        return { Firm_Id: firm.id, created_at: firm.createdAt }
+    right:
+      code: |
+        return { firmId: firm.id, createdAt: firm.createdAt }
+    reason: camelCase is the JSON convention consumers expect.
+
+  - id: ts-api-paths-prefer-hyphen
+    topic: API
+    severity: nit
+    lintable: true
+    sources: ["backend-go#go-api-paths-prefer-hyphen-to-underscore"]
+    principle: Prefer hyphens over underscores in URL paths.
+    wrong:
+      code: |
+        app.post('/events/support_request', supportRequestHandler)
+    right:
+      code: |
+        app.post('/events/support-request', supportRequestHandler)
+    reason: Browsers underline URLs, which can hide `_` characters; hyphens stay visible.
+
+  - id: ts-naming-conventions
+    topic: Naming
+    severity: nit
+    lintable: true
+    sources: ["universal#u-self-explanatory-names"]
+    principle: >
+      Types, classes, and interfaces are PascalCase; variables and functions are
+      camelCase. Don't stutter — don't repeat the module or class name in its members.
+    wrong:
+      description: Stuttering members and a mis-cased function.
+      code: |
+        class UserService {
+          UserServiceGetUser(UserID: number) { /* ... */ }
+        }
+    right:
+      description: PascalCase type, camelCase members, no repeated prefix.
+      code: |
+        class UserService {
+          getUser(userId: number) { /* ... */ }
+        }
+    reason: >
+      Consistent casing and a non-redundant name make code scannable; the class qualifier
+      (`userService.getUser`) already carries the context. TS-concrete form of
+      u-self-explanatory-names.
+  - id: ts-parametrized-test-setup
+    topic: Testing
+    severity: blocker
+    lintable: false
+    sources: [vini-style]
+    principle: >
+      The assertion-relevant starting state — the entities and inputs a test's assertions
+      depend on — is explicit data passed into a per-file setup(args) function, called on
+      the first line of the test, like a table test. Expensive shared infrastructure (the
+      DB container, the server process) and invariant wiring config (e.g. a fixed test
+      secret) are started ONCE in hooks/constants; setup() seeds against them, it does not
+      recreate them.
+    wrong:
+      description: >
+        A fixed global seed (or a beforeEach) decides the starting users for every test,
+        so the data a test depends on lives somewhere else and is the same for all cases.
+      code: |
+        // one default world for every test
+        beforeEach(async () => {
+          await seedUsers(DEFAULT_USERS) // fixed; same for all tests
+        })
+
+        it('lists active users', async () => {
+          const res = await fetch(`${baseURL}/users?status=active`)
+          expect((await res.json()).length).toBe(2) // 2 == magic, defined elsewhere
+        })
+    right:
+      description: >
+        The shared app/db are started once in beforeAll; a per-file setup({ users }) seeds
+        exactly the passed data against them and the test calls it first.
+      code: |
+        // beforeAll: container + app started once; the secret is a constant
+        async function setup(args: { users: User[] }) {
+          await db.insertInto('users').values(args.users).execute()
+          return { baseURL } // baseURL from the shared app
+        }
+
+        it('lists only active users', async () => {
+          const { baseURL } = await setup({
+            users: [
+              { id: 1, name: 'Ana', status: 'active' },
+              { id: 2, name: 'Bo', status: 'disabled' },
+            ],
+          })
+
+          const res = await fetch(`${baseURL}/users?status=active`)
+          expect(await res.json()).toEqual([{ id: 1, name: 'Ana', status: 'active' }])
+        })
+    reason: >
+      When the data a test asserts on is an argument at the call site, each test reads
+      top-to-bottom with no hidden globals, cases that need different worlds don't fight a
+      shared seed, and changing the arrangement is one function edit. But setup() is for
+      that test-specific data only — not for rebuilding slow, invariant infrastructure:
+      the DB container, the running server, and fixed wiring config (a test secret no
+      assertion depends on) belong in beforeAll/constants, started once, with per-test
+      isolation handled by truncating between tests.
