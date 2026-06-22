@@ -367,3 +367,37 @@ rules:
     reason: >
       Path-matching regex in the layout couples it to every page. Declaring the title
       on the route keeps the layout generic and the title next to the page it names.
+
+  - id: vue-fail-loud-on-unexpected-data
+    topic: Errors
+    severity: blocker
+    lintable: false
+    sources: [fe-031]
+    principle: >
+      When external data (e.g. a backend response) doesn't match a modeled value, throw —
+      do not add a silent default case or a fallback value that papers over the mismatch.
+    wrong:
+      description: An unmodeled status falls through to a benign default.
+      code: |
+        function statusLabel(status) {
+          switch (status) {
+            case 'active':   return 'Active'
+            case 'inactive': return 'Inactive'
+            default:         return 'Unknown' // swallows an unexpected backend value
+          }
+        }
+    right:
+      description: The unmodeled case throws so it reaches monitoring.
+      code: |
+        function statusLabel(status) {
+          switch (status) {
+            case 'active':   return 'Active'
+            case 'inactive': return 'Inactive'
+            default:         throw new Error(`unexpected status: ${status}`)
+          }
+        }
+    reason: >
+      A default branch silently absorbs backend contract drift: the UI renders something
+      plausible while the real mismatch goes unnoticed. Throwing surfaces it to the
+      notification/monitoring service immediately — the same reason a logged error must
+      re-throw (see vue-rethrow-after-logging).
