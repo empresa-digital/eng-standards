@@ -203,6 +203,37 @@ rules:
       Keep all route paths, route names, params, and API endpoint segments in
       English; translate only user-facing strings through the i18n layer.
 
+  - id: u-diagnostics-in-english
+    topic: Naming
+    severity: nit
+    lintable: false
+    sources: [fe-routes-i18n, "user-2026-06"]
+    principle: >
+      Write developer-facing diagnostics — error and exception messages, log lines,
+      panics — in English, even when the product UI is localized. Only copy shown
+      verbatim to end users is translated, through the i18n layer.
+    wrong:
+      description: Error/log text written in the team's native language.
+      code: |
+        throw new Error(`Avaliação sem título: ${id}`)
+        return core.BadRequestErr("usuário não encontrado", nil)
+    right:
+      description: Diagnostics in English; only rendered copy is localized.
+      code: |
+        throw new Error(`Evaluation without title: ${id}`)
+        return core.BadRequestErr("user not found", nil)
+    reason: >
+      Error messages and logs are read by developers — in stack traces, dashboards,
+      and alerts — not by end users. A native-language diagnostic is opaque to anyone
+      outside the team, fractures log search/grep, and mixes languages the moment one
+      contributor differs. Like route names (u-routes-english-names), diagnostics are
+      code-level text, not product copy, so they stay English regardless of the UI's
+      locale.
+    solution: >
+      Keep Error(), log, and panic strings in English. For text shown directly to end
+      users, surface a code or key at the throw site and translate it in the
+      i18n/presentation layer instead of hand-writing localized strings in code.
+
   - id: u-document-copied-source
     topic: Provenance
     severity: nit
