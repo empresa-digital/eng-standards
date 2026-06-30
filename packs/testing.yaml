@@ -37,7 +37,7 @@ rules:
 
   - id: test-extend-handler-table
     topic: Structure
-    severity: nit
+    severity: blocker
     lintable: false
     sources: [vini-style]
     principle: >
