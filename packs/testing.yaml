@@ -35,6 +35,43 @@ rules:
       Conditional logic in a test is itself untested and hides what each case actually
       asserts. A flat data-driven shape keeps every case readable and uniform.
 
+  - id: test-extend-handler-table
+    topic: Structure
+    severity: blocker
+    lintable: false
+    sources: [vini-style]
+    principle: >
+      One table-driven test per handler/route/function. Add a new flow (happy path, an
+      error case, a validation case) as another ROW in that table — not as a sibling test
+      that re-stands-up the same mocks. Pair a flexible request-body column with expect*
+      columns so a single table expresses every flow.
+    wrong:
+      description: >
+        Each flow is its own test with duplicated setup, so a handler's coverage is spread
+        across parallel tests that drift independently.
+      code: |
+        func TestCreateFirm_Success(t *testing.T)     { /* stand up mocks; assert 200 */ }
+        func TestCreateFirm_MissingName(t *testing.T) { /* same mocks; assert 400 */ }
+        func TestCreateFirm_Forbidden(t *testing.T)   { /* same mocks; assert 403 */ }
+    right:
+      description: One table; every flow is a row, so a new flow extends it instead of adding a sibling.
+      code: |
+        tests := []struct {
+          name               string
+          requestBody        any
+          expectStatus       int
+          expectErrToContain string
+        }{
+          {name: "success", requestBody: map[string]any{"name": "Test"}, expectStatus: 200},
+          {name: "missing name", requestBody: map[string]any{}, expectStatus: 400, expectErrToContain: "name"},
+          {name: "forbidden", requestBody: map[string]any{"name": "X"}, expectStatus: 403},
+        }
+    reason: >
+      Sibling tests per flow re-create identical setup and drift apart, and a reader must
+      scan several tests to learn what one handler does. A single table keeps setup in one
+      place, scales by data instead of copy-pasted bodies, and makes a missing flow obvious
+      as a missing row. Pairs with test-flexible-request-body and test-data-driven-tests.
+
   - id: test-descriptive-fixture-names
     topic: Naming
     severity: nit
