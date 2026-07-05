@@ -87,10 +87,13 @@ rules:
     sources: ["user-2026-07"]
     principle: >
       An outbound (driven) adapter imports the stdlib, the core package, ports, helpers, AND
-      the external technology it adapts. It must NOT import a sibling outbound adapter, an
-      inbound adapter, or execution/delivery wiring (worker/server/lambda). Importing the
-      adapted technology's own client library is CORRECT and must not be flagged — there is
-      no blanket ban on technology in an outbound adapter.
+      the external technology it adapts. It must NOT import a sibling outbound adapter's
+      implementation package, an inbound adapter, or execution/delivery wiring
+      (worker/server/lambda). Importing the adapted technology's own client library is CORRECT
+      and must not be flagged — there is no blanket ban on technology in an outbound adapter.
+      Rare-but-allowed: like a core service, an outbound adapter may depend on a sibling via
+      that sibling's PORT INTERFACE injected through DI — only the direct import of the
+      sibling's implementation is forbidden.
     wrong:
       description: An outbound adapter reaches into a sibling adapter and into server wiring.
       code: |
@@ -114,8 +117,10 @@ rules:
       An outbound adapter is supposed to be coupled to the one technology it adapts (a
       Postgres driver, an HTTP client, an S3 SDK) — flagging "this adapter imports a database
       driver" is the #1 false positive and is wrong. The real violations are importing a
-      sibling adapter, importing an inbound adapter, or pulling in execution/delivery
-      concerns. See references/hexagonal-go.md ("Outbound adapters" and its "Nuance" note).
+      sibling adapter's implementation, importing an inbound adapter, or pulling in
+      execution/delivery concerns — a sibling reached through its port interface via DI is
+      fine, as with service-to-service. See references/hexagonal-go.md ("Outbound adapters"
+      and its "Nuance" note).
 
   - id: go-hex-helpers-import-stdlib-and-helpers-only
     topic: Architecture

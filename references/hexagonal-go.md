@@ -61,8 +61,13 @@ domain errors before returning.
 
 - **May import:** stdlib, the core package, port packages, helpers, **and the external
   dependencies relevant to the technology it adapts.**
-- **Must not import:** another outbound adapter, any inbound adapter, or anything that
-  reflects *how the app is executed* (worker / server / lambda wiring).
+- **Must not import:** another outbound adapter's **implementation** package, any inbound
+  adapter, or anything that reflects *how the app is executed* (worker / server / lambda
+  wiring).
+- **Needing a sibling adapter (rare):** just like a core service, an outbound adapter may
+  depend on a **port interface** injected via DI. If it genuinely needs another adapter, it
+  goes through that sibling's port interface + dependency injection — never a direct import
+  of the sibling's implementation package.
 - *Verik example:* `/adapters/**`.
 
 **Nuance — do not get this wrong.** There is **no blanket ban on technology in an
@@ -70,8 +75,9 @@ outbound adapter.** An outbound adapter is *supposed* to be coupled to the tech 
 adapts: a Postgres client library belongs in a repository adapter; an HTTP client
 belongs in an adapter that calls an external API; an S3 SDK belongs in a blob-store
 adapter. Flagging "this adapter imports a database driver" is a false positive. The real
-violations are: importing a *sibling* adapter, importing an *inbound* adapter, or pulling
-in execution/delivery concerns.
+violations are: importing a *sibling* adapter's **implementation** (a sibling's port
+interface via DI is fine), importing an *inbound* adapter, or pulling in execution/delivery
+concerns.
 
 ### Inbound adapters (entrypoint / driving adapters)
 
@@ -125,8 +131,9 @@ The rules are fixed; understanding these flexibility points is what makes them p
 
 Dependencies point **inward**: entrypoints → services → ports ← adapters, with core at
 the center depending on nothing but the stdlib and helpers. **Sideways** moves are
-forbidden within a layer too: an outbound adapter must not import a sibling adapter, and a
-service must not import a sibling service (it goes through a core interface instead). Two
+forbidden within a layer too: an outbound adapter must not import a sibling adapter's
+implementation, and a service must not import a sibling service — both reach a sibling only
+through a **port/core interface injected via DI**, never a direct import. Two
 things an import linter cannot see but a reviewer must: an adapter pulling in
 execution/delivery concerns, and the semantic violation below.
 
