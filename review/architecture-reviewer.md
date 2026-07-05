@@ -100,6 +100,18 @@ misses or is not yet configured to catch:
   constructor. Do **not** rationalize env-reading below the inbound layer as "mere deployment
   substrate" — if it sits in core, a service, or an outbound adapter, it is coupling to how the
   app is run, and the fix is to read it at the entrypoint and inject it.
+- **Adapters leaking external representation *inward*:** an in- or outbound adapter that hands
+  the domain a raw external shape instead of translating it — a timestring instead of
+  `time.Time`, a seconds `int` instead of `time.Duration`, or an external enum/value passed
+  through without mapping it to a domain type. The adapter must translate at its boundary; a
+  raw external representation crossing into the domain is coupling
+  (`go-hex-no-delivery-coupling-in-domain-types`).
+- **Core services implementing what belongs in an adapter:** a service building an HTTP header
+  map and forwarding it, translating an internal enum to an external wire format before handing
+  it to an adapter, or defining SQL / AI prompts (complex external languages) inline. These
+  belong hidden inside an adapter behind well-defined functions the service calls. (Forwarding
+  an opaque, user-provided prompt as a blob is fine — a blob doesn't contaminate the service's
+  logic.)
 
 **Explicit non-violations — do not flag these** (they are the top false positives):
 

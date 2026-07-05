@@ -19,6 +19,7 @@ rules:
     wrong:
       description: Core imports a port and an external library.
       code: |
+        // core/user.go (domain)
         package core
 
         import (
@@ -28,6 +29,7 @@ rules:
     right:
       description: Core depends on the stdlib and helpers only.
       code: |
+        // core/user.go (domain)
         package core
 
         import (
@@ -52,6 +54,7 @@ rules:
     wrong:
       description: A service imports a sibling service package directly (invites an import cycle).
       code: |
+        // core/billing/billing.go (core service)
         package billing
 
         import "myapp/core/accounts" // direct sibling-service import
@@ -63,6 +66,7 @@ rules:
     right:
       description: Depend on a core-declared interface the sibling service implements.
       code: |
+        // core/billing/billing.go (core service)
         package billing
 
         // Accounts is declared in core/ports and satisfied by the accounts service.
@@ -86,41 +90,46 @@ rules:
     lintable: true
     sources: ["user-2026-07"]
     principle: >
-      An outbound (driven) adapter imports the stdlib, the core package, ports, helpers, AND
-      the external technology it adapts. It must NOT import a sibling outbound adapter's
-      implementation package, an inbound adapter, or execution/delivery wiring
-      (worker/server/lambda). Importing the adapted technology's own client library is CORRECT
-      and must not be flagged — there is no blanket ban on technology in an outbound adapter.
-      Rare-but-allowed: like a core service, an outbound adapter may depend on a sibling via
-      that sibling's PORT INTERFACE injected through DI — only the direct import of the
-      sibling's implementation is forbidden.
+      An outbound (driven) adapter can import the stdlib, the core package, ports, helpers,
+      AND the external technology it adapts. It may also import OTHER external technologies
+      needed to integrate with the one it adapts (e.g. a Pipedrive adapter also needs an HTTP
+      client lib) and generic libraries that simplify its code — as long as there is a genuine
+      use and it does not couple the adapter to another internal adapter or core service. It
+      must NOT import a sibling outbound adapter's implementation package, an inbound adapter,
+      a core service, or execution/delivery wiring (worker/server/lambda). Importing the
+      adapted technology's own client library is CORRECT and must not be flagged — there is no
+      blanket ban on technology in an outbound adapter. Rare-but-allowed: like a core service,
+      an outbound adapter may depend on a sibling via that sibling's PORT INTERFACE injected
+      through DI — only the direct import of the sibling's implementation is forbidden.
     wrong:
       description: An outbound adapter reaches into a sibling adapter and into server wiring.
       code: |
+        // adapters/repo/pgusers/pgusers.go (outbound adapter)
         package pgusers
 
         import (
-          "myapp/adapters/s3blobs"  // sibling outbound adapter
-          "myapp/cmd/server"        // execution/delivery wiring
+          "myapp/adapters/cloudstorage/s3blobs" // sibling outbound adapter
+          "myapp/cmd/server"                     // execution/delivery wiring
         )
     right:
       description: The adapter imports core, ports, helpers, and the DB client it adapts — nothing sideways.
       code: |
+        // adapters/repo/pgusers/pgusers.go (outbound adapter)
         package pgusers
 
         import (
           "github.com/jackc/pgx/v5" // the adapted technology's client — CORRECT, do not flag
           "myapp/core"
-          "myapp/core/ports"
+          "myapp/adapters/repo" // the port (contracts.go) declared next to the adapter group
         )
     reason: >
-      An outbound adapter is supposed to be coupled to the one technology it adapts (a
-      Postgres driver, an HTTP client, an S3 SDK) — flagging "this adapter imports a database
-      driver" is the #1 false positive and is wrong. The real violations are importing a
-      sibling adapter's implementation, importing an inbound adapter, or pulling in
+      An outbound adapter is supposed to be coupled to the technology it adapts (a Postgres
+      driver, an HTTP client, an S3 SDK) — flagging "this adapter imports a database driver"
+      is the #1 false positive and is wrong; the same goes for the extra libs it genuinely
+      needs to talk to that technology. The real violations are importing a sibling adapter's
+      implementation, importing an inbound adapter, importing a core service, or pulling in
       execution/delivery concerns — a sibling reached through its port interface via DI is
-      fine, as with service-to-service. See references/hexagonal-go.md ("Outbound adapters"
-      and its "Nuance" note).
+      fine, as with service-to-service. See references/hexagonal-go.md ("Outbound adapters").
 
   - id: go-hex-helpers-import-stdlib-and-helpers-only
     topic: Architecture
@@ -128,32 +137,39 @@ rules:
     lintable: true
     sources: ["user-2026-07"]
     principle: >
-      A helper package imports only the stdlib or other helper packages — nothing with a
-      side effect anyone would want to mock. `testify` counts as an external helper package
-      and is allowed.
+      A helper package has no side-effect anyone would want to mock and is not coupled to
+      anything domain-specific. It may pull in the stdlib, other helpers, and generic external
+      libraries — we judge ONLY what we actually use from a dependency, not what that library
+      imports internally. `testify` therefore counts as a helper: the parts we use (assertions)
+      have no mockable side-effect and no domain coupling. What a helper must not import is
+      core, a port, or an adapter — those carry domain coupling or mockable I/O.
     wrong:
-      description: A helper imports core and an adapter, giving it side effects to mock.
+      description: A helper imports core and an adapter, giving it domain coupling and I/O to mock.
       code: |
-        package helpers
+        // helpers/text/text.go
+        package text
 
         import (
-          "myapp/core"              // helpers stay below the domain
-          "myapp/adapters/pgusers"  // an I/O adapter in a helper
+          "myapp/core"                    // domain coupling in a helper
+          "myapp/adapters/repo/pgusers"   // an I/O adapter in a helper
         )
     right:
-      description: A helper depends on the stdlib and other helpers only (testify allowed).
+      description: A helper depends on the stdlib, other helpers, and generic external libs (testify allowed).
       code: |
-        package helpers
+        // helpers/text/text.go
+        package text
 
         import (
           "strings"
-          "myapp/helpers/text"
-          "github.com/stretchr/testify/require" // external helper — allowed
+          "myapp/helpers/slices"
+          "github.com/stretchr/testify/require" // used surface has no mockable side-effect — allowed
         )
     reason: >
-      Helpers are pure utilities (formatting, parsing, conversions) with no side effect worth
-      mocking; letting one import core or an adapter turns a leaf into a hidden dependency and
-      breaks the inward-only direction. See references/hexagonal-go.md ("Helpers").
+      A helper is defined by its used surface, not its bucket: as long as the parts we call
+      have no mockable side-effect and no domain coupling, generic external libs (testify,
+      formatters, parsers) are fine. Importing core, a port, or an adapter breaks that — it
+      drags domain coupling or mockable I/O into a leaf and points a dependency outward. See
+      references/hexagonal-go.md ("Helpers").
 
   - id: go-hex-test-files-follow-package-role
     topic: Architecture
@@ -168,22 +184,23 @@ rules:
     wrong:
       description: A core test imports an adapter to wire an integration test in the wrong place.
       code: |
+        // core/user_test.go
         package core_test
 
-        import "myapp/adapters/pgusers" // core role forbids adapters — test is bound by it too
+        import "myapp/adapters/repo/pgusers" // core role forbids adapters — test is bound by it too
     right:
       description: Broad wiring lives in an inbound-adapter test; an outbound test may use its own db/http lib.
       code: |
-        // integration wiring lives here, where the inbound role already allows any import:
+        // cmd/api/server_test.go — inbound role already allows any import:
         package server_test
 
         import (
-          "myapp/adapters/pgusers"
+          "myapp/adapters/repo/pgusers"
           "myapp/core/accounts"
         )
 
-        // and an outbound adapter's own test may import a generic db client — not an exception,
-        // the outbound role already permits the technology it adapts:
+        // adapters/repo/pgusers/pgusers_test.go — an outbound adapter's own test may import a
+        // generic db client; not an exception, the outbound role already permits the tech it adapts:
         package pgusers_test
 
         import "github.com/jackc/pgx/v5"
@@ -199,9 +216,10 @@ rules:
     lintable: false
     sources: ["user-2026-07"]
     principle: >
-      A core/domain type must not gain an attribute whose only reason to exist is a transport
-      or delivery mechanism. The Code→delivery mapping belongs in the inbound adapter, not the
-      domain type.
+      Core/domain types must exist to fulfill domain needs and must not contain attributes or
+      other implementation details whose ONLY reason to exist is coupled to an external
+      protocol or technology that should be handled by an adapter. The Code→delivery mapping
+      belongs in the inbound adapter, not the domain type.
     wrong:
       description: The domain error grows an HTTP Status field — it exists only because HTTP exists.
       code: |

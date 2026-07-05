@@ -15,10 +15,10 @@ rules:
       When a Go repo documents a hexagonal (or any layered) architecture, its
       import-direction rules should be enforced mechanically by an import-boundary linter,
       configured PER Go module — a monorepo has several modules and each needs its own
-      config. Standardize on `go-arch-lint` (single binary, installed via the same
-      `go install <tool>@latest` pattern the Makefiles already use for staticcheck/richgo).
-      Do NOT introduce golangci-lint here — these repos use staticcheck + go vet and
-      golangci is heavier.
+      config. Standardize on `go-arch-lint` (a single binary). For the mechanics of
+      installing and wiring the linter, follow the active org's local-linter-setup rule
+      (see `orgs/<org>.yaml`). Prefer a lightweight setup; do not reach for golangci-lint
+      just to check import direction.
     wrong:
       description: Documented hexagonal layers, but no import-boundary config and CI never checks import direction.
       code: |
@@ -29,11 +29,13 @@ rules:
       description: A per-module go-arch-lint config mirroring the documented roles, run in make lint / CI.
       code: |
         # .go-arch-lint.yml (one per Go module)
+        # NOTE: interim example — being validated against a real module (a Verik go-arch-lint
+        # PR) and may be adjusted once that config is confirmed. Not yet verified.
         version: 3
         components:
           core:     { in: core }
-          ports:    { in: core/**/contracts.go }
-          adapters: { in: adapters/** }
+          ports:    { in: adapters/**/contracts.go }
+          adapters: { in: adapters/**/*/*.go }
           cmd:      { in: cmd/** }
         deps:
           core:     { mayDependOn: [] }

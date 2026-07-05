@@ -3,24 +3,26 @@
 The shared mental model for reviewing (and building) our Go services. This is
 **reference prose**, not a rule pack — it defines the architecture so an LLM reviewer,
 a human, or a lint-config generator can decide which package plays which role and what
-each role is allowed to import. The `packs/backend-go.yaml` rules enforce individual
-facets of what is described here; this doc is the picture they add up to.
+each role is allowed to import. The `packs/architecture-hexagonal-go.yaml` rules are the
+primary enforcement of what is described here (with `packs/backend-go.yaml` covering
+adjacent Go conventions); this doc is the picture they add up to.
 
 The architecture is defined **by role**, not by folder path. A repo identifies which
-package is which; folders are free to change over time. Verik is our **default layout** —
-the reference we reach for when starting a new project or when in doubt — so its paths
-appear throughout as a **labeled example**, never as a mandate.
+package is which; folders are free to change over time. Our **default layout** — the
+reference we reach for when starting a new project or when in doubt — supplies the paths
+that appear throughout as **labeled examples**, never as a mandate.
 
 ## The roles
 
 ### Core (domain)
 
-Pure domain logic. Pure functions, domain entities, domain error types, validators. No
-side effects, no I/O, no awareness of how the app is delivered or executed.
+Pure domain logic. Pure functions, domain entities, domain error types, and validators
+for domain types/concepts (validation can also happen in other layers). No side effects,
+no I/O, no awareness of how the app is delivered or executed.
 
 - **May import:** the stdlib and helper packages — nothing else.
 - **Must not import:** ports, adapters, entrypoints, or any external dependency.
-- *Verik example:* `core/*.go`.
+- *Default layout:* `core/*.go`.
 
 ### Core services
 
@@ -35,7 +37,7 @@ construction.
   a core-declared interface**, never by importing the sibling service package directly.
   Direct service-to-service imports invite import cycles; an interface owned by core breaks
   them. (This is an application of "depend on ports, not implementations" *inside* core.)
-- *Verik example:* subdirectories of `/core`.
+- *Default layout:* subdirectories of `/core`.
 
 ### Ports
 
@@ -49,59 +51,68 @@ right next to that interface** — not in an adapter and not in a shared types p
   that implements it). A core service importing that package is importing a **port**
   (allowed), not an adapter (forbidden) — judge by what the file declares (interfaces), not
   by the directory it happens to live in.
-- *Verik example:* `contracts.go` alongside the service that owns the port, e.g.
+- *Default layout:* `contracts.go` alongside the service that owns the port, e.g.
   `adapters/crm/contracts.go`.
+
+### Mocks
+
+Any package that declares an interface should also declare a `mocks.go` **in that same
+package**, built with the project's generic mock structure. Tests then mock the interface
+from a ready-made mock instead of re-implementing the same boilerplate at every call site.
 
 ### Outbound adapters (driven / client adapters)
 
-Implement a port by adapting **exactly one** external technology: a database, an object
-store, a message broker, another service's HTTP API, an LLM API, and so on. They
-translate external complexity — including foreign error types — into domain types and
-domain errors before returning.
+Implement a port to reach an external technology: a database, an object store, a message
+broker, another service's HTTP API, an LLM API, and so on. An outbound adapter is
+**self-contained, hides external complexity from the domain, and fulfills domain needs by
+implementing port interfaces**. It translates external complexity — including foreign
+error types — into domain types and domain errors before returning. (We do not enforce
+single-responsibility at the architecture level; one adapter may lean on more than one
+external piece — e.g. a NATS adapter that also uses JetStream.)
 
 - **May import:** stdlib, the core package, port packages, helpers, **and the external
-  dependencies relevant to the technology it adapts.**
+  dependencies relevant to the technology it adapts.** Importing the adapted technology's
+  client library — and any other external libs genuinely needed to talk to it — is
+  expected, not a smell.
 - **Must not import:** another outbound adapter's **implementation** package, any inbound
-  adapter, or anything that reflects *how the app is executed* (worker / server / lambda
-  wiring).
+  adapter, **core services**, or anything that reflects *how the app is executed* (worker /
+  server / lambda wiring).
 - **Needing a sibling adapter (rare):** just like a core service, an outbound adapter may
   depend on a **port interface** injected via DI. If it genuinely needs another adapter, it
   goes through that sibling's port interface + dependency injection — never a direct import
   of the sibling's implementation package.
-- *Verik example:* `/adapters/**`.
-
-**Nuance — do not get this wrong.** There is **no blanket ban on technology in an
-outbound adapter.** An outbound adapter is *supposed* to be coupled to the tech it
-adapts: a Postgres client library belongs in a repository adapter; an HTTP client
-belongs in an adapter that calls an external API; an S3 SDK belongs in a blob-store
-adapter. Flagging "this adapter imports a database driver" is a false positive. The real
-violations are: importing a *sibling* adapter's **implementation** (a sibling's port
-interface via DI is fine), importing an *inbound* adapter, or pulling in execution/delivery
-concerns.
+- *Default layout:* `/adapters/**`.
 
 ### Inbound adapters (entrypoint / driving adapters)
 
-HTTP controllers, message-broker workers, CLI entrypoints, and `main.go` with the DI
-wiring. These are the outermost layer.
+HTTP servers, message-broker workers, CLI entrypoints, lambda function entrypoints, and
+any `main.go` with the DI wiring. These are the outermost layer.
 
 - **May import:** anything.
 - Inbound adapters are **intentionally coupled directly to service implementations**, not
-  to service interfaces. This is a deliberate Verik decision: importing the concrete
-  service discourages ceremonial mock-interfaces at the entrypoint and keeps integration
-  tests exercising the real service logic. Do not flag an entrypoint for depending on a
-  concrete service.
-- *Verik example:* `/cmd/*`.
+  to service interfaces. This is a deliberate decision: importing the concrete service
+  discourages ceremonial mock-interfaces at the entrypoint and keeps integration tests
+  exercising the real service logic. Do not flag an entrypoint for depending on a concrete
+  service.
+- *Default layout:* `/cmd/*`.
 
 ### Helpers
 
-Small utilities with no side effect anyone would want to mock (formatting, parsing, pure
-conversions).
+A **helper is a package with no side-effect anyone would ever want to mock, and not
+coupled to anything specific to this domain** (formatting, parsing, pure conversions, and
+the like). A helper *may* have generic dependencies — what matters is that the parts we
+actually use have no mockable side-effects and no domain coupling.
 
-- **May import:** stdlib or other helpers — nothing else.
-- `testify` is treated as an external helper package.
-- A helper that reads **ambient config** (environment variables, flags) is **not** a pure
-  helper — env-reading is inbound-only (see *Configuration & environment*). Judge such code by
-  what it does (`os.Getenv`), not by the `helpers/` bucket it sits in.
+Example of a valid helper: a generic env-var parser (stdlib-only, no significant logic, no
+hard-coded variable names, used only at startup). Nobody would ever want to mock it, and it
+knows nothing about this domain — so it qualifies, even though it touches the environment.
+
+- **May import:** stdlib or other helpers — plus generic external libraries whose used
+  surface still has no mockable side-effect and no domain coupling.
+- `testify` is treated as an external helper package (the parts we use fit the definition).
+- Judge a helper by what the parts we use actually *do*, not by the `helpers/` bucket it
+  sits in: a package that performs domain-coupled I/O anyone would want to mock is not a
+  helper no matter where it lives.
 
 ### Test files
 
@@ -118,6 +129,38 @@ of this rule:
 
 The rules are fixed; understanding these flexibility points is what makes them practical.
 
+## Fakers
+
+To build test instances of an entity/struct, declare a **faker function in a `fakers.go`**
+in the **same directory as the struct**. Three rules:
+
+1. **Deterministic** — calling the faker twice yields the exact same instance. No random
+   values, no `time.Now()`; a test that needs variation passes it in explicitly.
+2. **Dumb** — mandatory *identifying* args (unique keys, IDs, required foreign keys) are
+   **positional**; everything unimportant is passed through a trailing `map[string]any{}`
+   of overrides. Keep the signature small and the body obvious.
+3. **Defaults allowed but discouraged** — prefer a dumb faker with no baked-in defaults;
+   add a default only when its absence would force *most* tests to set that value every time.
+
+```go
+// fakers.go — same directory as User.
+func FakeUser(id int, email string, overrides map[string]any) User {
+    u := User{ID: id, Email: email, Name: "Test User", Active: true}
+    for k, v := range overrides {
+        switch k {
+        case "name":
+            u.Name = v.(string)
+        case "active":
+            u.Active = v.(bool)
+        }
+    }
+    return u
+}
+```
+
+A shared fakers helper (generic override application over a struct) makes these faster to
+write and keeps them uniform across packages.
+
 ## Dependency direction at a glance
 
 | Role | May import |
@@ -127,7 +170,7 @@ The rules are fixed; understanding these flexibility points is what makes them p
 | Ports | stdlib, core, helpers (interfaces + their DTOs) |
 | Outbound adapter | stdlib, core, ports, helpers, **+ the external tech it adapts** |
 | Inbound adapter | anything (couples directly to concrete services) |
-| Helpers | stdlib, other helpers |
+| Helpers | stdlib, other helpers, generic external libs (no mockable side-effect, no domain coupling in the used surface) |
 
 Dependencies point **inward**: entrypoints → services → ports ← adapters, with core at
 the center depending on nothing but the stdlib and helpers. **Sideways** moves are
@@ -189,6 +232,12 @@ in as a constructor parameter while another is read from the environment in the 
 constructor. Reading env inside an inner layer is a common but wrong shortcut; the fix is
 always to read it at the entrypoint and inject the value.
 
+> **Open question (gray area).** A *generic* env-parsing helper used only at startup sits
+> on the boundary: it arguably belongs to an adapter rather than a helper, and the
+> "env is inbound-only" rule and the "generic parser is a helper" view are in tension. We
+> keep the env-only-in-inbound rule, but treat this specific case as unsettled and worth
+> revisiting.
+
 ```go
 // WRONG — outbound adapter reaches into the deploy environment.
 func New(token string) *Client {
@@ -239,7 +288,19 @@ transaction without duplicating the query or the error translation.
 - **Reviewers:** for a diff, identify each changed package's role, then check its imports
   against the table above and check every new domain type against the delivery-coupling
   rule. The sideways-adapter and delivery-coupling checks are the two an import linter will
-  miss — spend judgment there.
+  miss — spend judgment there. Also check two more coupling classes an import linter cannot
+  see:
+  - **Adapters (in- or outbound) leaking external representation *into* the domain** —
+    passing a timestring instead of `time.Time`, a seconds `int` instead of
+    `time.Duration`, or handing over an external enum/value without translating it to a
+    domain type. The adapter must translate at its boundary, not push the raw external
+    shape inward.
+  - **Core services implementing what belongs in an adapter** — building an HTTP header map
+    and forwarding it, translating an internal enum to an external wire format before
+    handing it to an adapter, or defining SQL / AI prompts (complex external languages)
+    inside a service. These belong hidden inside adapters; the service should call
+    well-defined functions instead. (Forwarding an opaque, user-provided prompt as a blob
+    is fine — a blob doesn't contaminate the service's logic.)
 - **A lint-config generator:** map each module to a role, then emit allowed-import sets
   from the table. The role boundaries are mechanical; the delivery-coupling rule stays with
   the reviewer.
