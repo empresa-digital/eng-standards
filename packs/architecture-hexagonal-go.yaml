@@ -1,0 +1,269 @@
+meta:
+  pack: architecture-hexagonal-go
+  description: >
+    Import-direction and delivery-coupling rules for the hexagonal architecture we use in
+    Go, kept separate so another architecture can get its own pack. The prose model these
+    rules enforce lives in references/hexagonal-go.md — that doc is the source of truth for
+    the roles and import directions; each rule references it in its reason.
+  language: en
+
+rules:
+  - id: go-hex-core-imports-stdlib-and-helpers-only
+    topic: Architecture
+    severity: blocker
+    lintable: true
+    sources: ["user-2026-07"]
+    principle: >
+      The core (domain) package imports only the stdlib and helper packages — never ports,
+      never adapters, never entrypoints, never an external library.
+    wrong:
+      description: Core imports a port and an external library.
+      code: |
+        package core
+
+        import (
+          "github.com/google/uuid"     // external lib in the domain
+          "myapp/core/ports"           // core must not know ports
+        )
+    right:
+      description: Core depends on the stdlib and helpers only.
+      code: |
+        package core
+
+        import (
+          "time"
+          "myapp/helpers/slices"
+        )
+    reason: >
+      Core is the center of the hexagon and must depend on nothing but the stdlib and
+      helpers; any other import points a dependency outward and couples the domain to a
+      detail. See references/hexagonal-go.md ("Core (domain)").
+
+  - id: go-hex-service-imports-and-sibling-through-interface
+    topic: Architecture
+    severity: blocker
+    lintable: true
+    sources: ["user-2026-07"]
+    principle: >
+      A core service imports only the stdlib, the core package, port packages, and helpers.
+      It must NOT import adapter implementations, entrypoints, or external technology
+      libraries. A service may call another service ONLY through a core-declared interface —
+      never by importing the sibling service package directly.
+    wrong:
+      description: A service imports a sibling service package directly (invites an import cycle).
+      code: |
+        package billing
+
+        import "myapp/core/accounts" // direct sibling-service import
+
+        func (s Service) Charge(ctx context.Context, userID int) error {
+          acct, err := s.accounts.Get(ctx, userID) // s.accounts is accounts.Service
+          // ...
+        }
+    right:
+      description: Depend on a core-declared interface the sibling service implements.
+      code: |
+        package billing
+
+        // Accounts is declared in core/ports and satisfied by the accounts service.
+        type Accounts interface {
+          Get(ctx context.Context, userID int) (core.Account, error)
+        }
+
+        func (s Service) Charge(ctx context.Context, accounts Accounts, userID int) error {
+          acct, err := accounts.Get(ctx, userID)
+          // ...
+        }
+    reason: >
+      Services orchestrate the domain through ports, so they never reach for an adapter or a
+      raw client; and a direct sibling-service import risks an import cycle that an interface
+      owned by core breaks. This is "depend on ports, not implementations" applied inside
+      core. See references/hexagonal-go.md ("Core services").
+
+  - id: go-hex-outbound-adapter-import-boundary
+    topic: Architecture
+    severity: blocker
+    lintable: true
+    sources: ["user-2026-07"]
+    principle: >
+      An outbound (driven) adapter imports the stdlib, the core package, ports, helpers, AND
+      the external technology it adapts. It must NOT import a sibling outbound adapter, an
+      inbound adapter, or execution/delivery wiring (worker/server/lambda). Importing the
+      adapted technology's own client library is CORRECT and must not be flagged — there is
+      no blanket ban on technology in an outbound adapter.
+    wrong:
+      description: An outbound adapter reaches into a sibling adapter and into server wiring.
+      code: |
+        package pgusers
+
+        import (
+          "myapp/adapters/s3blobs"  // sibling outbound adapter
+          "myapp/cmd/server"        // execution/delivery wiring
+        )
+    right:
+      description: The adapter imports core, ports, helpers, and the DB client it adapts — nothing sideways.
+      code: |
+        package pgusers
+
+        import (
+          "github.com/jackc/pgx/v5" // the adapted technology's client — CORRECT, do not flag
+          "myapp/core"
+          "myapp/core/ports"
+        )
+    reason: >
+      An outbound adapter is supposed to be coupled to the one technology it adapts (a
+      Postgres driver, an HTTP client, an S3 SDK) — flagging "this adapter imports a database
+      driver" is the #1 false positive and is wrong. The real violations are importing a
+      sibling adapter, importing an inbound adapter, or pulling in execution/delivery
+      concerns. See references/hexagonal-go.md ("Outbound adapters" and its "Nuance" note).
+
+  - id: go-hex-helpers-import-stdlib-and-helpers-only
+    topic: Architecture
+    severity: blocker
+    lintable: true
+    sources: ["user-2026-07"]
+    principle: >
+      A helper package imports only the stdlib or other helper packages — nothing with a
+      side effect anyone would want to mock. `testify` counts as an external helper package
+      and is allowed.
+    wrong:
+      description: A helper imports core and an adapter, giving it side effects to mock.
+      code: |
+        package helpers
+
+        import (
+          "myapp/core"              // helpers stay below the domain
+          "myapp/adapters/pgusers"  // an I/O adapter in a helper
+        )
+    right:
+      description: A helper depends on the stdlib and other helpers only (testify allowed).
+      code: |
+        package helpers
+
+        import (
+          "strings"
+          "myapp/helpers/text"
+          "github.com/stretchr/testify/require" // external helper — allowed
+        )
+    reason: >
+      Helpers are pure utilities (formatting, parsing, conversions) with no side effect worth
+      mocking; letting one import core or an adapter turns a leaf into a hidden dependency and
+      breaks the inward-only direction. See references/hexagonal-go.md ("Helpers").
+
+  - id: go-hex-test-files-follow-package-role
+    topic: Architecture
+    severity: blocker
+    lintable: true
+    sources: ["user-2026-07"]
+    principle: >
+      Test files obey the SAME import rules as the role of the package they live in — there
+      is no `_test.go` carve-out. Integration tests that need broad imports belong in inbound
+      adapters (which may import anything); they do not license a core or helper test to reach
+      outward.
+    wrong:
+      description: A core test imports an adapter to wire an integration test in the wrong place.
+      code: |
+        package core_test
+
+        import "myapp/adapters/pgusers" // core role forbids adapters — test is bound by it too
+    right:
+      description: Broad wiring lives in an inbound-adapter test; an outbound test may use its own db/http lib.
+      code: |
+        // integration wiring lives here, where the inbound role already allows any import:
+        package server_test
+
+        import (
+          "myapp/adapters/pgusers"
+          "myapp/core/accounts"
+        )
+
+        // and an outbound adapter's own test may import a generic db client — not an exception,
+        // the outbound role already permits the technology it adapts:
+        package pgusers_test
+
+        import "github.com/jackc/pgx/v5"
+    reason: >
+      A test inherits its package's role, so a core or helper test cannot import outward and
+      an outbound adapter's test using a generic db/http lib is NOT an exception — the role
+      already allowed that technology. Put multi-layer integration tests in inbound adapters,
+      their normal home. See references/hexagonal-go.md ("Test files").
+
+  - id: go-hex-no-delivery-coupling-in-domain-types
+    topic: Architecture
+    severity: blocker
+    lintable: false
+    sources: ["user-2026-07"]
+    principle: >
+      A core/domain type must not gain an attribute whose only reason to exist is a transport
+      or delivery mechanism. The Code→delivery mapping belongs in the inbound adapter, not the
+      domain type.
+    wrong:
+      description: The domain error grows an HTTP Status field — it exists only because HTTP exists.
+      code: |
+        type Error struct {
+          Code    string
+          Status  int    // HTTP status leaked into the domain
+          Message string
+        }
+    right:
+      description: The domain error stays transport-agnostic; the HTTP adapter maps Code to a status.
+      code: |
+        type Error struct {
+          Code    string // NotFound | AlreadyExists | Internal | ...
+          Message string
+        }
+        // inbound HTTP middleware maps err.Code -> HTTP status, keyed off Code.
+    reason: >
+      A delivery detail on a domain type drags transport into the domain and an import linter
+      cannot see it, so the reviewer owns this. Domain error NAMES coinciding with HTTP
+      concepts (NotFound, Internal) are fine — the smell is coupling the TYPE to a delivery
+      detail, not the vocabulary; some codes (AlreadyExists) have no HTTP equivalent, which
+      shows the vocabulary is independent of HTTP. See references/hexagonal-go.md
+      ("Semantic violation: domain types coupled to a delivery mechanism").
+
+  - id: go-hex-env-vars-only-read-in-inbound
+    topic: Architecture
+    severity: blocker
+    lintable: true
+    sources: ["user-2026-07"]
+    principle: >
+      An environment variable is an artifact of the deploy environment. Only the inbound
+      adapter may read env vars and translate them into config/domain values; every other
+      layer (core, core services, ports, outbound adapters, helpers) receives that config as
+      injected parameters and must never read the environment itself.
+    wrong:
+      description: >
+        An outbound adapter reads its config from the environment inside its constructor.
+      code: |
+        // adapters/crm/pipedrive/pipedrive.go (outbound adapter)
+        func New(token string) *Client {
+          return &Client{
+            token:          token,
+            intakePipeline: env.GetInt("PIPEDRIVE_INTAKE_PIPELINE_ID"),
+            originFieldKey: env.GetString("PIPEDRIVE_ORIGIN_FIELD_KEY"),
+          }
+        }
+    right:
+      description: >
+        The inbound adapter reads the env and injects the values; the outbound adapter takes
+        them as parameters.
+      code: |
+        // cmd/api/main.go (inbound adapter) reads the environment...
+        client := pipedrive.New(
+          env.GetString("PIPEDRIVE_TOKEN"),
+          env.GetInt("PIPEDRIVE_INTAKE_PIPELINE_ID"),
+          env.GetString("PIPEDRIVE_ORIGIN_FIELD_KEY"),
+        )
+
+        // ...the outbound adapter just receives them.
+        func New(token string, intakePipeline int, originFieldKey string) *Client {
+          return &Client{token: token, intakePipeline: intakePipeline, originFieldKey: originFieldKey}
+        }
+    reason: >
+      Reading env inside an inner layer couples it to how the app is deployed: the same
+      adapter driven by an Android/desktop/CLI entrypoint would have no such env vars. A
+      strong tell is asymmetry — one value injected as a parameter (e.g. token) while another
+      is read from env in the same constructor. go-arch-lint enforces this when the env-reading
+      helper is its own component allowed only for the inbound role; direct os.Getenv falls to
+      the reviewer. Reading env is a common but wrong shortcut, which is exactly why it needs a
+      named rule. See references/hexagonal-go.md ("Configuration & environment").

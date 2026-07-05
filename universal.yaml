@@ -297,6 +297,37 @@ rules:
       independently shippable and testable with one integration test plus a few unit
       tests for complex logic.
 
+  - id: u-architecture-description-present
+    topic: Architecture
+    severity: nit
+    lintable: false
+    sources: ["user-2026-07"]
+    principle: >
+      Every repo documents its architecture — the layers/roles and who-may-import-whom —
+      in an agent-readable root doc (`AGENTS.md`, `CLAUDE.md`, or `README.md`). Without it,
+      an architecture review has no ground truth to check imports and boundaries against.
+    wrong:
+      description: Layered code (core, adapters, entrypoints) but no architecture description anywhere.
+      code: |
+        // repo has core/, adapters/, cmd/ — but no doc names the roles or import directions,
+        // so a reviewer cannot tell which package may import which.
+    right:
+      description: A short "Architecture" section in a root doc naming the roles and import directions.
+      code: |
+        // AGENTS.md
+        ## Architecture
+        Hexagonal (see references/hexagonal-go.md for the canonical description):
+        core → depends on stdlib + helpers only; services → core/ports/helpers;
+        adapters implement ports; entrypoints wire everything. Dependencies point inward.
+    reason: >
+      An architecture review is only meaningful against a stated model; absent one, every
+      boundary call is guesswork. Flag its ABSENCE only when the change is
+      architecture-relevant or an architecture review is requested — not on every trivial PR.
+      Kept a `nit` (not a `blocker`) on purpose: this repo separates must-fix blockers from
+      surfaced-separately nits (see AGENTS.md "When flagging an issue"), and a missing doc
+      should prompt authoring it, not block an otherwise-correct change. `references/hexagonal-go.md`
+      is the canonical example of such a description.
+
   - id: u-fix-defects-at-their-source
     topic: Process
     severity: blocker

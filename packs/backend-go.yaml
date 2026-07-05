@@ -6,6 +6,48 @@ meta:
   language: en
 
 rules:
+  - id: go-arch-import-boundary-enforced
+    topic: Architecture
+    severity: nit
+    lintable: false
+    sources: ["user-2026-07"]
+    principle: >
+      When a Go repo documents a hexagonal (or any layered) architecture, its
+      import-direction rules should be enforced mechanically by an import-boundary linter,
+      configured PER Go module — a monorepo has several modules and each needs its own
+      config. Standardize on `go-arch-lint` (single binary, installed via the same
+      `go install <tool>@latest` pattern the Makefiles already use for staticcheck/richgo).
+      Do NOT introduce golangci-lint here — these repos use staticcheck + go vet and
+      golangci is heavier.
+    wrong:
+      description: Documented hexagonal layers, but no import-boundary config and CI never checks import direction.
+      code: |
+        // AGENTS.md describes core/services/ports/adapters and inward dependencies,
+        // but there is no .go-arch-lint.yml (or equivalent) for the module, and
+        // `make lint` runs only staticcheck + go vet — import direction is unchecked.
+    right:
+      description: A per-module go-arch-lint config mirroring the documented roles, run in make lint / CI.
+      code: |
+        # .go-arch-lint.yml (one per Go module)
+        version: 3
+        components:
+          core:     { in: core }
+          ports:    { in: core/**/contracts.go }
+          adapters: { in: adapters/** }
+          cmd:      { in: cmd/** }
+        deps:
+          core:     { mayDependOn: [] }
+          adapters: { mayDependOn: [core, ports] }
+        # Makefile: lint: ; go-arch-lint check; staticcheck ./...; go vet ./...
+    reason: >
+      Import-direction rules are mechanical, so a linter enforces them without spending
+      agent tokens or risking AI drift (see AGENTS.md on the `lintable` flag). Flag when the
+      architecture is documented but no import-boundary lint is configured/enforced for the
+      module, and point the author to the go-arch-lint config skill (created separately),
+      which generates a per-module config from the documented roles in
+      `references/hexagonal-go.md`. Complements u-architecture-description-present (the
+      doc that defines the boundaries) and the go-hex-* rules (which state each boundary).
+
   - id: go-no-passthrough-service
     topic: Architecture
     severity: nit
