@@ -28,18 +28,27 @@ rules:
     right:
       description: A per-module go-arch-lint config mirroring the documented roles, run in make lint / CI.
       code: |
-        # .go-arch-lint.yml (one per Go module)
-        # NOTE: interim example — being validated against a real module (a Verik go-arch-lint
-        # PR) and may be adjusted once that config is confirmed. Not yet verified.
+        # .go-arch-lint.yml (one per Go module) — validated against a real module.
+        # go-arch-lint matches PACKAGES by directory depth, not by filename: in the default
+        # layout the port packages (contracts.go) sit one level under adapters/, and the
+        # implementations one level deeper — so `adapters/*` and `adapters/*/*` are disjoint.
         version: 3
+        allow:
+          depOnAnyVendor: false
         components:
           core:     { in: core }
-          ports:    { in: adapters/**/contracts.go }
-          adapters: { in: adapters/**/*/*.go }
+          services: { in: core/* }
+          ports:    { in: adapters/* }     # the contracts.go packages
+          outbound: { in: adapters/*/* }   # the implementations, one level deeper
           cmd:      { in: cmd/** }
+          helpers:  { in: helpers/** }
         deps:
-          core:     { mayDependOn: [] }
-          adapters: { mayDependOn: [core, ports] }
+          core:     { mayDependOn: [helpers] }
+          services: { mayDependOn: [core, ports, helpers] }
+          ports:    { mayDependOn: [core, helpers] }
+          outbound: { mayDependOn: [core, ports, helpers], anyVendorDeps: true } # adapts external tech
+          cmd:      { anyProjectDeps: true, anyVendorDeps: true }                 # entrypoint: imports anything
+          helpers:  { mayDependOn: [helpers] }
         # Makefile: lint: ; go-arch-lint check; staticcheck ./...; go vet ./...
     reason: >
       Import-direction rules are mechanical, so a linter enforces them without spending
