@@ -79,32 +79,27 @@ shape.
 ## Step 3 — Verdict each dependency against the matrix
 
 For each enumerated dependency, decide: **allowed**, **forbidden**, or **N/A**, against the
-role's allowed-import set from `references/hexagonal-go.md`. Concentrate on what a linter
-misses or is not yet configured to catch:
+role's allowed-import set from `references/hexagonal-go.md`. **Spend your attention where a
+linter cannot** — that is the whole reason you run on a strong model.
 
-- **Sideways imports:** an outbound adapter importing a sibling outbound adapter or an
-  inbound adapter; a core service importing a sibling service directly instead of through a
-  core interface (`go-hex-service-imports-and-sibling-through-interface`).
-- **Inward leaks:** anything but stdlib/helpers in core (`go-hex-core-imports-stdlib-and-helpers-only`);
-  external tech or ports/adapters in a place that forbids them.
-- **Delivery coupling (the semantic smell):** a core/domain type gaining an attribute whose
-  only reason to exist is a transport/delivery mechanism — the canonical case is an HTTP
-  `Status int` added to a domain error that already has a transport-agnostic `Code`
+**First, is import direction mechanically enforced?** If the touched module has an
+import-boundary linter (`go-arch-lint` or equivalent) configured and actually run in
+`make lint`/CI, the pure import-direction rules are already caught deterministically — do
+**not** re-litigate them hunk by hunk; trust the linter and put your effort into the semantic
+checks below. If the module has **no** such linter, you cover import direction yourself *and*
+raise the enforcement finding (Step 4).
+
+### Primary focus — implicit / semantic (no linter catches these; this is your real job)
+
+- **Delivery coupling:** a core/domain type gaining an attribute whose only reason to exist
+  is a transport/delivery mechanism — the canonical case is an HTTP `Status int` added to a
+  domain error that already has a transport-agnostic `Code`
   (`go-hex-no-delivery-coupling-in-domain-types`). Domain names that merely coincide with
   HTTP (`NotFound`, `Internal`) are fine — judge coupling, not vocabulary.
-- **Environment / config access:** reading env vars — or any ambient/global config (process
-  env, flags, config singletons) — anywhere but an **inbound adapter** is a violation
-  (`go-hex-env-vars-only-read-in-inbound`). An env var is a deploy-environment artifact; only
-  the entrypoint reads it and injects the values downward. Watch the **asymmetry tell**: one
-  config value handed in as a constructor parameter while another is read from env in the same
-  constructor. Do **not** rationalize env-reading below the inbound layer as "mere deployment
-  substrate" — if it sits in core, a service, or an outbound adapter, it is coupling to how the
-  app is run, and the fix is to read it at the entrypoint and inject it.
 - **Adapters leaking external representation *inward*:** an in- or outbound adapter that hands
   the domain a raw external shape instead of translating it — a timestring instead of
   `time.Time`, a seconds `int` instead of `time.Duration`, or an external enum/value passed
-  through without mapping it to a domain type. The adapter must translate at its boundary; a
-  raw external representation crossing into the domain is coupling
+  through without mapping it to a domain type. The adapter must translate at its boundary
   (`go-hex-no-delivery-coupling-in-domain-types`).
 - **Core services implementing what belongs in an adapter:** a service building an HTTP header
   map and forwarding it, translating an internal enum to an external wire format before handing
@@ -112,6 +107,28 @@ misses or is not yet configured to catch:
   belong hidden inside an adapter behind well-defined functions the service calls. (Forwarding
   an opaque, user-provided prompt as a blob is fine — a blob doesn't contaminate the service's
   logic.)
+- **Environment / config access:** reading env vars — or any ambient/global config (process
+  env, flags, config singletons) — anywhere but an **inbound adapter** is a violation
+  (`go-hex-env-vars-only-read-in-inbound`). An env var is a deploy-environment artifact; only
+  the entrypoint reads it and injects the values downward. Watch the **asymmetry tell**: one
+  config value handed in as a constructor parameter while another is read from env in the same
+  constructor. Do **not** rationalize env-reading below the inbound layer as "mere deployment
+  substrate" — if it sits in core, a service, or an outbound adapter, it is coupling to how the
+  app is run, and the fix is to read it at the entrypoint and inject it. (An import-boundary
+  linter catches this only when the env helper is modeled as its own component — most configs
+  don't, so keep owning it.)
+
+### Import direction — verify here only when the module has no import-boundary linter
+
+These rules are `lintable: true`. If the linter is configured (see above), note "enforced by
+go-arch-lint" and move on instead of re-deriving them; only spend real effort here when the
+module has no import-boundary lint.
+
+- **Sideways imports:** an outbound adapter importing a sibling outbound adapter's
+  implementation or an inbound adapter; a core service importing a sibling service directly
+  instead of through a core interface (`go-hex-service-imports-and-sibling-through-interface`).
+- **Inward leaks:** anything but stdlib/helpers in core (`go-hex-core-imports-stdlib-and-helpers-only`);
+  external tech or ports/adapters in a place that forbids them.
 
 **Explicit non-violations — do not flag these** (they are the top false positives):
 
