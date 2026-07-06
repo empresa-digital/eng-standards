@@ -35,6 +35,9 @@ rules:
         version: 3
         allow:
           depOnAnyVendor: false
+          deepScan: false   # keep this OFF: deepScan's DI-graph mode misattributes an injected
+                            # dependency to the constructor's component instead of the call site,
+                            # false-positiving on dependency injection. We enforce import boundaries only.
         components:
           core:     { in: core }
           services: { in: core/* }
