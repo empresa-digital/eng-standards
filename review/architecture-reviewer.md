@@ -27,6 +27,10 @@ repository**. The consuming repo's `AGENTS.md` declares the active org profile.
 3. **If there is no architecture description**, or it is too vague to say who-may-import-whom:
    that is itself the finding — report `[u-architecture-description-present]` and stop the
    boundary analysis (you have no ground truth to check against). Do not invent one.
+4. **If the described architecture does not match the hexagonal architecture** work with
+   what is described in the project and file an improvement suggestion to the eng-standards
+   repo using gh cli stating this architecture is missing and should be added. There is
+   an issue created just for receiving these suggestions.
 
 ## When to run
 
@@ -104,7 +108,7 @@ raise the enforcement finding (Step 4).
 - **Core services implementing what belongs in an adapter:** a service building an HTTP header
   map and forwarding it, translating an internal enum to an external wire format before handing
   it to an adapter, or defining SQL / AI prompts (complex external languages) inline. These
-  belong hidden inside an adapter behind well-defined functions the service calls. (Forwarding
+  should be hidden inside an adapter behind well-defined functions the service calls. (Forwarding
   an opaque, user-provided prompt as a blob is fine — a blob doesn't contaminate the service's
   logic.)
 - **Environment / config access:** reading env vars — or any ambient/global config (process

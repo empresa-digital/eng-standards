@@ -19,7 +19,7 @@ rules:
     wrong:
       description: Core imports a port and an external library.
       code: |
-        // core/user.go (domain)
+        // core/entities.go (domain)
         package core
 
         import (
@@ -29,7 +29,7 @@ rules:
     right:
       description: Core depends on the stdlib and helpers only.
       code: |
-        // core/user.go (domain)
+        // core/entities.go (domain)
         package core
 
         import (
@@ -104,18 +104,18 @@ rules:
     wrong:
       description: An outbound adapter reaches into a sibling adapter and into server wiring.
       code: |
-        // adapters/repo/pgusers/pgusers.go (outbound adapter)
-        package pgusers
+        // adapters/repo/pgrepo/pgrepo.go (outbound adapter)
+        package pgrepo
 
         import (
           "myapp/adapters/cloudstorage/s3blobs" // sibling outbound adapter
-          "myapp/cmd/server"                     // execution/delivery wiring
+          "myapp/cmd/server"                    // execution/delivery wiring
         )
     right:
       description: The adapter imports core, ports, helpers, and the DB client it adapts — nothing sideways.
       code: |
-        // adapters/repo/pgusers/pgusers.go (outbound adapter)
-        package pgusers
+        // adapters/repo/pgrepo/pgrepo.go (outbound adapter)
+        package pgrepo
 
         import (
           "github.com/jackc/pgx/v5" // the adapted technology's client — CORRECT, do not flag
@@ -137,12 +137,16 @@ rules:
     lintable: true
     sources: ["user-2026-07"]
     principle: >
-      A helper package has no side-effect anyone would want to mock and is not coupled to
-      anything domain-specific. It may pull in the stdlib, other helpers, and generic external
+      A helper package is meant to facilitate the use of repeated code snippets but it is
+      a not part of the Hex architecture design. As such any code we put on a helper must be
+      safe from any issues that would harm the arquitecture: (1) they can't do anything that
+      requires mocking (because we don't use interfaces for them), (2) they cannot import any
+      other internal packages (because that could cause a dependency cycle) (3) they cannot
+      import core or have any domain knowledge (otherwise they should be in core where domain
+      knowledge belongs to). It may pull in the stdlib, other helpers, and generic external
       libraries — we judge ONLY what we actually use from a dependency, not what that library
       imports internally. `testify` therefore counts as a helper: the parts we use (assertions)
-      have no mockable side-effect and no domain coupling. What a helper must not import is
-      core, a port, or an adapter — those carry domain coupling or mockable I/O.
+      have no side-effect we might want to mock and no domain coupling.
     wrong:
       description: A helper imports core and an adapter, giving it domain coupling and I/O to mock.
       code: |
@@ -150,8 +154,8 @@ rules:
         package text
 
         import (
-          "myapp/core"                    // domain coupling in a helper
-          "myapp/adapters/repo/pgusers"   // an I/O adapter in a helper
+          "myapp/core"                   // domain coupling in a helper
+          "myapp/adapters/repo/pgrepo"   // an I/O adapter in a helper
         )
     right:
       description: A helper depends on the stdlib, other helpers, and generic external libs (testify allowed).
@@ -184,24 +188,24 @@ rules:
     wrong:
       description: A core test imports an adapter to wire an integration test in the wrong place.
       code: |
-        // core/user_test.go
+        // core/entities_test.go
         package core_test
 
-        import "myapp/adapters/repo/pgusers" // core role forbids adapters — test is bound by it too
+        import "myapp/adapters/repo/pgrepo" // core role forbids adapters — test is bound by it too
     right:
       description: Broad wiring lives in an inbound-adapter test; an outbound test may use its own db/http lib.
       code: |
-        // cmd/api/server_test.go — inbound role already allows any import:
-        package server_test
+        // cmd/api/main_test.go — inbound role already allows any import:
+        package main
 
         import (
-          "myapp/adapters/repo/pgusers"
+          "myapp/adapters/repo/pgrepo"
           "myapp/core/accounts"
         )
 
-        // adapters/repo/pgusers/pgusers_test.go — an outbound adapter's own test may import a
+        // adapters/repo/pgrepo/pgrepo_test.go — an outbound adapter's own test may import a
         // generic db client; not an exception, the outbound role already permits the tech it adapts:
-        package pgusers_test
+        package pgrepo_test
 
         import "github.com/jackc/pgx/v5"
     reason: >

@@ -101,14 +101,15 @@ any `main.go` with the DI wiring. These are the outermost layer.
 A **helper is a package with no side-effect anyone would ever want to mock, and not
 coupled to anything specific to this domain** (formatting, parsing, pure conversions, and
 the like). A helper *may* have generic dependencies — what matters is that the parts we
-actually use have no mockable side-effects and no domain coupling.
+actually use have no side-effects we might want to mock and no domain coupling.
 
 Example of a valid helper: a generic env-var parser (stdlib-only, no significant logic, no
-hard-coded variable names, used only at startup). Nobody would ever want to mock it, and it
-knows nothing about this domain — so it qualifies, even though it touches the environment.
+hard-coded variable names, used only at startup). Nobody would ever want to mock it as it is
+only to be used on the main function, and it knows nothing about this domain — so it qualifies,
+even though it touches the environment.
 
 - **May import:** stdlib or other helpers — plus generic external libraries whose used
-  surface still has no mockable side-effect and no domain coupling.
+  surface still has no side-effects we might want to mock and no domain coupling.
 - `testify` is treated as an external helper package (the parts we use fit the definition).
 - Judge a helper by what the parts we use actually *do*, not by the `helpers/` bucket it
   sits in: a package that performs domain-coupled I/O anyone would want to mock is not a
@@ -131,11 +132,12 @@ The rules are fixed; understanding these flexibility points is what makes them p
 
 ## Fakers
 
-To build test instances of an entity/struct, declare a **faker function in a `fakers.go`**
-in the **same directory as the struct**. Three rules:
+To build test instances of an entity/struct in a succint manner, declare a **faker function
+in a `fakers.go`** in the **same directory as the struct**. Three rules:
 
 1. **Deterministic** — calling the faker twice yields the exact same instance. No random
-   values, no `time.Now()`; a test that needs variation passes it in explicitly.
+   values, no `time.Now()`; calling a faker function should have no surprising behavior
+   so the test is easy to understand. Custom attributes must be passed explicitly.
 2. **Dumb** — mandatory *identifying* args (unique keys, IDs, required foreign keys) are
    **positional**; everything unimportant is passed through a trailing `map[string]any{}`
    of overrides. Keep the signature small and the body obvious.
@@ -222,7 +224,7 @@ Clarifications that keep this from misfiring:
 An **environment variable is an artifact of the deploy environment**, not of the domain. The
 responsibility to read env vars and translate them into config lives **only in the inbound
 adapter** (the composition root / entrypoint). Every other layer — core, core services,
-ports, outbound adapters, helpers — receives that config as **injected parameters** and must
+ports, outbound adapters — receives that config as **injected parameters** and must
 never read the environment itself.
 
 This is the same "don't assume how you're driven" rule applied to config: an outbound adapter
@@ -232,11 +234,8 @@ in as a constructor parameter while another is read from the environment in the 
 constructor. Reading env inside an inner layer is a common but wrong shortcut; the fix is
 always to read it at the entrypoint and inject the value.
 
-> **Open question (gray area).** A *generic* env-parsing helper used only at startup sits
-> on the boundary: it arguably belongs to an adapter rather than a helper, and the
-> "env is inbound-only" rule and the "generic parser is a helper" view are in tension. We
-> keep the env-only-in-inbound rule, but treat this specific case as unsettled and worth
-> revisiting.
+> Note: It is ok to have a generic helper that wraps the behavior of reading env vars as long
+> as this helper is only used on the inbound layer.
 
 ```go
 // WRONG — outbound adapter reaches into the deploy environment.
@@ -301,6 +300,14 @@ transaction without duplicating the query or the error translation.
     inside a service. These belong hidden inside adapters; the service should call
     well-defined functions instead. (Forwarding an opaque, user-provided prompt as a blob
     is fine — a blob doesn't contaminate the service's logic.)
+  - **Anything defined in core that is coupled to external system** — enum values
+    that match perfectly with external tecnologies to avoid having to translate it.
+    DTOs that are only used to receive or send messages to an external systems and
+    don't represent internal domain concepts.
+    - **One Exception:** As long as we control the database schema to match our domain
+      models its ok not to have a translation step between core and the db. DB tags
+      are also allowed on entities as long as the entities are not made to fit the db
+      but the other way around.
 - **A lint-config generator:** map each module to a role, then emit allowed-import sets
   from the table. The role boundaries are mechanical; the delivery-coupling rule stays with
   the reviewer.
