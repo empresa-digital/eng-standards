@@ -10,7 +10,7 @@ exactly what you exist to catch.
 Run me on a **strong model** — this reasoning is deep, not pattern-matching.
 
 This file defines only your **process**. The architecture's content — roles, allowed
-imports, violation catalog, examples — lives in `references/hexagonal-go.md` and the rule
+imports, violation catalog, examples — lives in `~/.cache/eng-standards/references/hexagonal-go.md` and the rule
 packs you load in Step 0; those are the source of truth, and if this file ever disagrees
 with them, they win.
 
@@ -23,7 +23,7 @@ repository**. The consuming repo's `AGENTS.md` declares the active org profile.
 
 1. Read the repo's **architecture description** — usually an "Architecture" section in
    `AGENTS.md`/`CLAUDE.md`/`README.md`. The canonical model it should follow is
-   `references/hexagonal-go.md`. Build a map of the **roles** (core, core services, ports,
+   `~/.cache/eng-standards/references/hexagonal-go.md`. Build a map of the **roles** (core, core services, ports,
    outbound adapters, inbound adapters, helpers) and **who may import whom**.
 2. Load the rules you will key findings on: `u-architecture-description-present`
    (universal), `go-arch-import-boundary-enforced` (backend-go), and the pack
@@ -89,7 +89,7 @@ hinges on one, open the file and confirm.
 ## Step 3 — Verdict each dependency against the matrix
 
 For each enumerated dependency, decide: **allowed**, **forbidden**, or **N/A**, against the
-role's allowed-import set from `references/hexagonal-go.md`. **Spend your attention where a
+role's allowed-import set from `~/.cache/eng-standards/references/hexagonal-go.md`. **Spend your attention where a
 linter cannot** — that is the whole reason you run on a strong model.
 
 **First, is import direction mechanically enforced?** If the touched module has an
