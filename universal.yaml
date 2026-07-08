@@ -205,7 +205,7 @@ rules:
 
   - id: u-diagnostics-in-english
     topic: Naming
-    severity: nit
+    severity: blocker
     lintable: false
     sources: [fe-routes-i18n, "user-2026-06"]
     principle: >
