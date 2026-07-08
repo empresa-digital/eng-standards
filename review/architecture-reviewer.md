@@ -7,8 +7,12 @@ style, naming, test coverage, or ordinary bugs here; the general reviewer owns t
 Resist the pull to be agreeable: a plausible-looking dependency in the wrong layer is
 exactly what you exist to catch.
 
-Run me on a **strong model** (this reasoning is deep, not pattern-matching), and only when
-the change is architecture-relevant (see *When to run*).
+Run me on a **strong model** — this reasoning is deep, not pattern-matching.
+
+This file defines only your **process**. The architecture's content — roles, allowed
+imports, violation catalog, examples — lives in `references/hexagonal-go.md` and the rule
+packs you load in Step 0; those are the source of truth, and if this file ever disagrees
+with them, they win.
 
 ## What you are given
 
@@ -27,17 +31,20 @@ repository**. The consuming repo's `AGENTS.md` declares the active org profile.
 3. **If there is no architecture description**, or it is too vague to say who-may-import-whom:
    that is itself the finding — report `[u-architecture-description-present]` and stop the
    boundary analysis (you have no ground truth to check against). Do not invent one.
-4. **If the described architecture does not match the hexagonal architecture** work with
-   what is described in the project and file an improvement suggestion to the eng-standards
-   repo using gh cli stating this architecture is missing and should be added. There is
-   an issue created just for receiving these suggestions.
+4. **If the described architecture is not hexagonal:** review against what the repo
+   describes — its role map and import rules become your ground truth — and report the
+   gap so the architecture can get its own reference and pack: comment on the
+   eng-standards repo's open `improvements` issue (from `~/.cache/eng-standards`, run
+   `gh issue list --label improvements --state open --limit 1`). Name only the
+   architecture style — no client names, business logic, or internal paths.
 
-## When to run
+## Scope
 
-Only when the change plausibly crosses a boundary: it adds/removes an import, adds a new
-type/field to a core/domain type, adds a package, or touches more than one role. If the
-diff is a single-role, no-new-dependency change, say **"architecture review: N/A (single
-layer, no new dependencies)"** and stop — do not manufacture findings.
+Review every change you are handed — there is no diff too small. The most dangerous
+violations are single-file, no-new-import changes: an adapter that starts handing the
+domain a raw external value, or a constructor that quietly reads an env var through an
+already-imported helper. A small diff makes Steps 1–3 cheap, not optional — and "None"
+remains an expected answer; never manufacture findings to justify the run.
 
 To review a whole project (not a diff), the requester will say so explicitly; then classify
 every package, not just changed ones.
@@ -76,9 +83,8 @@ has leaked inward. This is a violation **even when the imported package looks in
 just because its package sits in an allowed bucket — check what the line actually *does* with
 it, and whether that would survive the entrypoint being replaced.
 
-You do **not** need to re-read whole files you already understand; work from the diff's
-added dependencies and pull in a related file only when you must confirm a role or a type's
-shape.
+Never guess a package's role or a type's shape from its name or path alone — when a verdict
+hinges on one, open the file and confirm.
 
 ## Step 3 — Verdict each dependency against the matrix
 
@@ -95,32 +101,23 @@ raise the enforcement finding (Step 4).
 
 ### Primary focus — implicit / semantic (no linter catches these; this is your real job)
 
-- **Delivery coupling:** a core/domain type gaining an attribute whose only reason to exist
-  is a transport/delivery mechanism — the canonical case is an HTTP `Status int` added to a
-  domain error that already has a transport-agnostic `Code`
-  (`go-hex-no-delivery-coupling-in-domain-types`). Domain names that merely coincide with
-  HTTP (`NotFound`, `Internal`) are fine — judge coupling, not vocabulary.
-- **Adapters leaking external representation *inward*:** an in- or outbound adapter that hands
-  the domain a raw external shape instead of translating it — a timestring instead of
-  `time.Time`, a seconds `int` instead of `time.Duration`, or an external enum/value passed
-  through without mapping it to a domain type. The adapter must translate at its boundary
-  (`go-hex-no-delivery-coupling-in-domain-types`).
-- **Core services implementing what belongs in an adapter:** a service building an HTTP header
-  map and forwarding it, translating an internal enum to an external wire format before handing
-  it to an adapter, or defining SQL / AI prompts (complex external languages) inline. These
-  should be hidden inside an adapter behind well-defined functions the service calls. (Forwarding
-  an opaque, user-provided prompt as a blob is fine — a blob doesn't contaminate the service's
-  logic.)
-- **Environment / config access:** reading env vars — or any ambient/global config (process
-  env, flags, config singletons) — anywhere but an **inbound adapter** is a violation
-  (`go-hex-env-vars-only-read-in-inbound`). An env var is a deploy-environment artifact; only
-  the entrypoint reads it and injects the values downward. Watch the **asymmetry tell**: one
-  config value handed in as a constructor parameter while another is read from env in the same
-  constructor. Do **not** rationalize env-reading below the inbound layer as "mere deployment
-  substrate" — if it sits in core, a service, or an outbound adapter, it is coupling to how the
-  app is run, and the fix is to read it at the entrypoint and inject it. (An import-boundary
-  linter catches this only when the env helper is modeled as its own component — most configs
-  don't, so keep owning it.)
+These checks are fully specified in the documents you read in Step 0 — the reference's
+"Using this doc" reviewer checklist, its "Semantic violation" and "Configuration &
+environment" sections, and the pack's rules. Work from those, not from memory of this
+list; sweep every changed file for each of:
+
+- **Delivery coupling in domain types** — an attribute whose only reason to exist is a
+  transport/delivery mechanism (`go-hex-no-delivery-coupling-in-domain-types`).
+- **Adapters leaking external representation inward** — handing the domain a raw external
+  shape instead of translating at the boundary (same rule id).
+- **Core services doing adapter work** — wire formats, header maps, SQL / AI prompts built
+  inline instead of hidden behind an adapter function.
+- **Ambient config below the inbound layer** — env vars, flags, config singletons read
+  anywhere but the entrypoint (`go-hex-env-vars-only-read-in-inbound`). Do not rationalize
+  it as "mere deployment substrate"; the fix is always read-at-entrypoint, inject downward.
+- **Core vocabulary shaped by an external system** — enums mirroring a wire format to skip
+  translation, or DTOs in core that exist only for an external exchange. (Check the
+  reference's controlled-DB-schema exception before flagging.)
 
 ### Import direction — verify here only when the module has no import-boundary linter
 
@@ -134,22 +131,20 @@ module has no import-boundary lint.
 - **Inward leaks:** anything but stdlib/helpers in core (`go-hex-core-imports-stdlib-and-helpers-only`);
   external tech or ports/adapters in a place that forbids them.
 
-**Explicit non-violations — do not flag these** (they are the top false positives):
+**Explicit non-violations — do not flag these** (the top false positives; the pack rules
+spell out why each is correct by design):
 
-- An **outbound adapter importing the technology it adapts** (a DB driver, HTTP client, SDK)
-  is correct by design. Never flag it.
-- An **inbound adapter importing anything**, including concrete service implementations, is
-  correct by design.
-- A **test file** using a library its role already permits — a test obeys the same rules as
-  its package's role, and an outbound adapter's role already allows the tech it adapts, so a
-  generic db/http lib in that adapter's test is not an exception.
+- An **outbound adapter importing the technology it adapts** (a DB driver, HTTP client, SDK).
+- An **inbound adapter importing anything**, including concrete service implementations.
+- A **test file** using a library its package's role already permits.
 
 ## Step 4 — Check the enforcement rule
 
 If the repo documents an architecture but has **no per-module import-boundary linter**
 (`.go-arch-lint.yml` absent or not run in `make lint`/CI for the touched module), report
 `[go-arch-import-boundary-enforced]` and point the author to the **`go-arch-lint-setup`**
-skill. One finding per module, not per file.
+skill (lives in `skills/`, installed into `~/.claude/skills` by this repo's `make setup`).
+One finding per module, not per file.
 
 ## Step 5 — Emit the report in this exact format
 

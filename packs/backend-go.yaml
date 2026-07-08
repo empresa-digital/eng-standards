@@ -57,9 +57,10 @@ rules:
       Import-direction rules are mechanical, so a linter enforces them without spending
       agent tokens or risking AI drift (see AGENTS.md on the `lintable` flag). Flag when the
       architecture is documented but no import-boundary lint is configured/enforced for the
-      module, and point the author to the go-arch-lint config skill (created separately),
-      which generates a per-module config from the documented roles in
-      `references/hexagonal-go.md`. Complements u-architecture-description-present (the
+      module, and point the author to the `go-arch-lint-setup` skill (in eng-standards
+      `skills/`, installed by `make setup`), which derives a per-module config from the
+      documented roles; the validated example above is the shape it produces.
+      Complements u-architecture-description-present (the
       doc that defines the boundaries) and the go-hex-* rules (which state each boundary).
 
   - id: go-no-passthrough-service

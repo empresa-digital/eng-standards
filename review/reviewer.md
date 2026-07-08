@@ -13,6 +13,12 @@ A change to review — a diff, a branch, or a set of files — plus **full read 
 the repository**. The active org profile (if any) is declared in the consuming repo's
 `AGENTS.md`.
 
+**Scope split with the architecture reviewer.** Deep boundary/coupling analysis is owned
+by `review/architecture-reviewer.md`, which runs as a separate pass. Still report boundary
+leaks you trip over (under `## Design risks`), but do not attempt its exhaustive dependency
+sweep. If the change touches `.go` files in a repo with a documented architecture and that
+pass has not run, say so at the top of your report so the requester runs it.
+
 ## Step 1 — Load only the relevant rules
 
 Look at the file types in the change and load the matching packs (see this repo's
