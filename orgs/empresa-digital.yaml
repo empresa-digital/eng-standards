@@ -29,6 +29,37 @@ rules:
       itself correctly; tests are fast. Direct toolchain invocations create sandbox
       friction.
 
+  - id: ed-local-linter-setup
+    topic: Workflow
+    severity: nit
+    lintable: false
+    sources: ["user-2026-07"]
+    principle: >
+      Local linters and dev tools (go-arch-lint, staticcheck, richgo, …) are installed
+      per Go module via `go install <tool>@latest` in the Makefile `setup` target, and then
+      invoked from `make lint` / CI. A monorepo has one such setup per module. This is the
+      mechanism the generic `go-arch-import-boundary-enforced` (packs/backend-go) rule defers
+      to for wiring an import-boundary linter.
+    wrong:
+      description: A tool assumed to be globally present, not installed by the module's setup.
+      code: |
+        # Makefile
+        lint: ; go-arch-lint check; staticcheck ./...; go vet ./...
+        # (no setup target installs go-arch-lint / staticcheck — CI has no way to get them)
+    right:
+      description: The setup target installs each tool; lint runs them.
+      code: |
+        # Makefile
+        setup:
+        	go install github.com/fe3dback/go-arch-lint@latest
+        	go install honnef.co/go/tools/cmd/staticcheck@latest
+        lint: ; go-arch-lint check; staticcheck ./...; go vet ./...
+    reason: >
+      Installing tools per module via `go install <tool>@latest` in `setup` keeps CI and every
+      developer on the same pinned-by-tag toolchain without a heavier lint aggregator. This is
+      an empresa-digital house convention; another org may vendor tools differently, so it
+      stays in the org profile and the portable backend-go rule points here for the mechanics.
+
   - id: ed-repo-two-version-functions
     topic: Architecture
     severity: blocker
