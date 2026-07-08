@@ -103,10 +103,35 @@ Exit 0 = clean, 1 = violations. **Report existing violations; do not auto-fix pr
 code.** If a "violation" is actually a mislabeled package, fix the *mapping* with the
 human — never loosen a real boundary to make the check pass.
 
-Gotcha: go-arch-lint's scanner uses `filepath.Walk` and can panic on an unreadable dir
-(e.g. a root-owned local docker volume like `.data`) *before* `exclude` applies. Add such
-dirs to `exclude:` regardless; if it still blocks a local run, validate against a copy
-without that dir. CI is unaffected (the dir won't exist there).
+Gotcha: go-arch-lint's scanner uses `filepath.Walk` and panics on an unreadable dir
+(e.g. a root-owned local docker volume) *before* `exclude` applies — so `exclude:` does
+**not** prevent the panic for such a dir. The root cause is usually a `docker-compose.yml`
+that bind-mounts the DB data dir into the repo (`- .data/crm:/var/lib/postgresql/data`),
+which postgres then owns as root. **The real fix is to switch that bind mount to a named
+Docker volume** so no root-owned dir ever lives in the project tree:
+```yaml
+services:
+  db:
+    volumes:
+      - <svc>_pgdata:/var/lib/postgresql/data   # was: - .data/crm:/var/lib/postgresql/data
+volumes:
+  <svc>_pgdata:
+```
+This makes `make lint` work locally with no `exclude` hack and CI stays clean. When
+migrating an existing repo, **back up the old DB and restore it into the new volume** so
+local data isn't lost — otherwise the fresh named volume starts empty:
+```
+# 1. dump while the old bind-mounted container is still up:
+docker-compose exec -T db pg_dump -U postgres --clean --if-exists <db> > /tmp/<db>.sql
+# 2. recreate on the named volume (waits for healthy), then restore:
+docker-compose up -d --wait
+docker-compose exec -T db psql -U postgres -d <db> -v ON_ERROR_STOP=1 < /tmp/<db>.sql
+# 3. the orphaned root-owned dir must be removed with sudo: sudo rm -rf .data
+```
+If for some reason the bind mount must stay, `exclude:` the dir anyway (it silences the
+"unmapped package" report where the walk *does* succeed) and validate a local run against a
+copy without that dir (e.g. a `git archive` / `git worktree` checkout — tracked files only).
+CI is unaffected either way (the dir won't exist there).
 
 ### 5. Wire into lint + CI
 Add `go-arch-lint check` to the module's `make lint` target (next to staticcheck/go vet).
