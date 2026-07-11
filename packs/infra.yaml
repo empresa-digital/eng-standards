@@ -55,7 +55,7 @@ rules:
     sources: ["improvements#7"]
     principle: >
       Every container in a workload manifest declares CPU and memory resource requests
-      and limits.
+      and memory limits (no CPU limits).
     wrong:
       description: A container with no resources block — nothing bounds its consumption.
       code: |
@@ -65,7 +65,8 @@ rules:
             ports:
               - containerPort: 8080
     right:
-      description: Requests (for scheduling) and limits (to cap consumption) set explicitly.
+      description: CPU and memory requests (for scheduling) plus a memory limit (to cap
+        consumption) set explicitly; no CPU limit.
       code: |
         containers:
           - name: api
@@ -74,12 +75,15 @@ rules:
               - containerPort: 8080
             resources:
               requests: { cpu: 100m, memory: 128Mi }
-              limits:   { cpu: 500m, memory: 256Mi }
+              limits:   { memory: 256Mi }
     reason: >
       Without requests the scheduler can't place the pod sensibly and it becomes a noisy
-      neighbor; without limits one container can exhaust node memory and trigger evictions
-      of its co-tenants. Explicit values make capacity predictable. (A namespace LimitRange
-      can supply defaults — prefer setting them on the workload so the intent is visible.)
+      neighbor; without a memory limit one container can exhaust node memory and trigger
+      evictions of its co-tenants. A CPU limit is deliberately omitted: CPU is compressible,
+      so a limit only throttles the container while node capacity sits idle — the CPU
+      request alone guarantees its fair share under contention. Explicit values make capacity
+      predictable. (A namespace LimitRange can supply defaults — prefer setting them on the
+      workload so the intent is visible.)
 
   - id: infra-define-health-probes
     topic: Kubernetes
