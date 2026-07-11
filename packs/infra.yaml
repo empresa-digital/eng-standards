@@ -51,7 +51,7 @@ rules:
   - id: infra-set-resource-requests-and-limits
     topic: Kubernetes
     severity: blocker
-    lintable: false
+    lintable: true
     sources: ["improvements#7"]
     principle: >
       Every container in a workload manifest declares CPU and memory resource requests
@@ -88,7 +88,7 @@ rules:
   - id: infra-define-health-probes
     topic: Kubernetes
     severity: blocker
-    lintable: false
+    lintable: true
     sources: ["improvements#7"]
     principle: >
       Every long-running workload defines a readiness probe (gate traffic until ready)
