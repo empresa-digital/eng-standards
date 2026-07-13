@@ -169,6 +169,53 @@ rules:
       is not to name the thing at all — inline it; other times a poorly-named function
       should be split into several well-named ones.
 
+  - id: u-comments-explain-why-not-what
+    topic: Comments
+    severity: nit
+    lintable: false
+    sources: ["user-2026-07"]
+    principle: >
+      A comment earns its place only by capturing intent the code cannot express — a
+      non-obvious WHY. Default to no comment. Never restate what the next line already
+      says, explain a primitive any reader of the language/tool knows, or paste the
+      prompt/chat rationale that led to the code inline.
+    wrong:
+      description: >
+        Comments that paraphrase the adjacent code, narrate a self-evident primitive, or
+        bake in the reasoning from the task that produced the change.
+      code: |
+        // increment the retry counter
+        retries++
+
+        // PodDisruptionBudget keeps at least one pod available during disruptions
+        podDisruptionBudget: { minAvailable: 1 }
+
+        // The reviewer asked why 1s was too low, so this raises it to 5s
+        timeout: 5s
+    right:
+      description: >
+        No comment when the code speaks for itself; one line only where the WHY is
+        non-obvious and unrecoverable from the code.
+      code: |
+        retries++
+
+        podDisruptionBudget: { minAvailable: 1 }
+
+        # 1s tripped healthy backends into failover under normal P99 (~3s)
+        timeout: 5s
+    reason: >
+      A comment that repeats the code doubles the surface that can drift out of sync and
+      trains readers to skip comments, so the one comment that matters gets skimmed too.
+      Explaining a primitive insults the reader and adds noise; task/prompt rationale is a
+      point-in-time artifact that belongs in the PR description, not welded into the source
+      forever. What the code cannot recover on its own — why a threshold, why a workaround,
+      why the non-obvious path — is the only thing worth the line.
+    solution: >
+      Before writing a comment, ask whether the code already says it; if so, delete it. Keep
+      the ones that record a non-obvious WHY, in one line. Route decision/diagnosis narrative
+      to the PR description or an inline PR comment (see u-document-divergent-decisions), not
+      the file.
+
   - id: u-routes-english-names
     topic: Naming
     severity: blocker
