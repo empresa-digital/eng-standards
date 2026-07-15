@@ -14,10 +14,18 @@ the repository**. The active org profile (if any) is declared in the consuming r
 `AGENTS.md`.
 
 **Scope split with the architecture reviewer.** Deep boundary/coupling analysis is owned
-by `review/architecture-reviewer.md`, which runs as a separate pass. Still report boundary
-leaks you trip over (under `## Design risks`), but do not attempt its exhaustive dependency
-sweep. If the change touches `.go` files in a repo with a documented architecture and that
-pass has not run, say so at the top of your report so the requester runs it.
+by `review/architecture-reviewer.md`, which **always runs as a separate pass, spawned by
+the orchestrator, never by you**. You may be running as a delegated subagent, and subagent→
+subagent spawning is unreliable — so do not attempt to launch that pass yourself. Still
+report boundary leaks you trip over (under `## Design risks`), but do not attempt its
+exhaustive dependency sweep.
+
+**Mandatory hand-off signal.** The architecture pass runs on **every** review — there is no
+gate on language, on a `.go-arch-lint.yml`, or on a documented architecture; that pass
+self-scopes (its Step 0 reports a missing/vague architecture description as the finding and
+stops). So always make the **first line** of your report `ARCH_REVIEW_REQUIRED`. The
+orchestrator keys on this line to run the architecture pass before any verdict — "not run"
+is never an acceptable end state.
 
 ## Step 1 — Load only the relevant rules
 
