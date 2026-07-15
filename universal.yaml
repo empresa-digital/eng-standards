@@ -211,10 +211,10 @@ rules:
       forever. What the code cannot recover on its own — why a threshold, why a workaround,
       why the non-obvious path — is the only thing worth the line.
     solution: >
-      Before writing a comment, ask whether the code already says it; if so, delete it. Keep
-      the ones that record a non-obvious WHY, in one line. Route decision/diagnosis narrative
-      to the PR description or an inline PR comment (see u-document-divergent-decisions), not
-      the file.
+      Before writing a comment, ask whether the code already says it; if so, don't comment.
+      Keep the ones that record a non-obvious WHY, in one line. Route decision/diagnosis
+      narrative to the PR description or an inline PR comment (see u-document-divergent-decisions),
+      not the file.
 
   - id: u-routes-english-names
     topic: Naming
