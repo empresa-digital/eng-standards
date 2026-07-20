@@ -120,6 +120,32 @@ rules:
       Defensive code for impossible states adds noise, hides the real control flow,
       and implies failure modes that don't exist.
 
+  - id: u-handle-async-rejections-on-critical-paths
+    topic: Error handling
+    severity: blocker
+    lintable: false
+    sources: ["agent-improvements#12"]
+    principle: >
+      An async operation gating a critical path (app boot, lifecycle wiring, first render)
+      must handle its failure. Attach a rejection/error handler that degrades gracefully;
+      never leave the happy path assuming the operation always resolves.
+    wrong:
+      description: Boot deferred on an async step with no failure handling — a rejection blanks the app and fires bogus error reports.
+      code: |
+        readyToRender()
+          .then(() => mountApp())
+        // rejects on an aborted initial navigation: app never mounts, page stays blank
+    right:
+      description: Handle the rejection and proceed with a sane fallback.
+      code: |
+        readyToRender()
+          .catch(err => reportIfRealError(err))
+          .finally(() => mountApp())
+    reason: >
+      Unhandled rejections on the boot/critical path fail silently: the UI never appears
+      and monitoring fills with misleading errors. Verify the third-party promise/error
+      contract in the installed source before assuming it always resolves.
+
   - id: u-no-dead-scaffolding
     topic: Cleanliness
     severity: nit

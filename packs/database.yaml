@@ -24,6 +24,36 @@ rules:
         JOIN sales_orders so ON cu.firm_id = so.firm_id
     reason: A single casing convention keeps SQL scannable and diff-friendly.
 
+  - id: db-multiline-clause-indentation
+    topic: SQL
+    severity: nit
+    lintable: true
+    sources: ["agent-improvements#12"]
+    principle: >
+      When a statement spans multiple lines, break compound JOIN and WHERE clauses so
+      each predicate is its own indented line: put a JOIN's ON on the line below the
+      JOIN (with its extra ANDs each indented under it), and start every WHERE AND on
+      its own indented line. Single-line statements need no indentation.
+    wrong:
+      code: |
+        SELECT d.*
+        FROM documents d
+        LEFT JOIN firm_users fu ON fu.firm_id = d.firm_id AND fu.user_id = $1
+        WHERE d.status = 'active' AND d.firm_id = $2
+    right:
+      code: |
+        SELECT d.*
+        FROM documents d
+        LEFT JOIN firm_users fu
+          ON fu.firm_id = d.firm_id
+          AND fu.user_id = $1
+        WHERE d.status = 'active'
+          AND d.firm_id = $2
+    reason: >
+      One predicate per line makes join keys and filter conditions scannable and keeps
+      diffs minimal — adding or removing a condition touches a single line instead of
+      rewrapping a dense one.
+
   - id: db-composite-pk-for-join-tables
     topic: Modeling
     severity: blocker
