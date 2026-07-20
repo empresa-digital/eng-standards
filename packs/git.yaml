@@ -29,6 +29,34 @@ rules:
       Branching off another feature branch couples the two: the second can't merge
       until the first does, and it inherits the first's review churn.
 
+  - id: git-check-pr-state-before-follow-up-push
+    topic: Branching
+    severity: blocker
+    lintable: false
+    sources: ["agent-improvements#12"]
+    principle: >
+      Before pushing follow-up commits to a published branch, check whether its PR has
+      already merged. If it has (and the remote branch was auto-deleted), rebase the new
+      work onto fresh main as a new branch — do not let a plain push silently recreate
+      the deleted branch with a stale base.
+    wrong:
+      description: PR merged and remote branch deleted; a plain push recreates it with a stale base.
+      code: |
+        # feature-x already merged; its remote branch was auto-deleted
+        git commit -m "Address review follow-up"
+        git push            # recreates origin/feature-x from the stale base
+    right:
+      description: Confirm the PR state, then branch the follow-up off fresh main.
+      code: |
+        gh pr view feature-x --json state   # -> MERGED
+        git checkout master && git pull
+        git checkout -b feature-x-followup
+        git cherry-pick <follow-up-commit>
+    reason: >
+      Pushing to a merged-and-deleted branch resurrects it with an outdated base, opening
+      a confusing PR against stale code and leaving a stray branch to clean up. The PR
+      state is the source of truth for whether more commits belong on that branch.
+
   - id: git-one-branch-per-task
     topic: Branching
     severity: nit
