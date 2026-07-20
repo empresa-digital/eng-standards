@@ -30,6 +30,11 @@ Read `distill/config.local.json`: `{ repos: [...], last_run: ISO8601 | null }`. 
 
 1. **Improvements issue:** the single open issue labelled `improvements` — read its comments.
    `gh issue list --repo empresa-digital/eng-standards --label improvements --state open --limit 1`
+   - **Tagged skill-process comments** (e.g. `[sprint-refine]`, or any `[<skill-name>]` prefix)
+     are feedback about how an agent *skill* performed, **not** eng-standards rule evidence. Do
+     NOT cluster them into rule candidates (Step 3) or promote them into packs (Step 5). Keep
+     them under a separate `## Skill notes` section in the issue, carried across rotations like
+     the watch list; they are for the skill's own maintainer, not this library.
 2. **Live review comments:** for each repo in `config.local.json`, fetch PR **review
    comments created since `last_run`** (e.g. `gh api` on the repo's pulls/comments with a
    `since` filter, or `gh search`). Never copy sensitive source content out of those repos.
@@ -90,8 +95,9 @@ now in `config.local.json`, and output:
 4. Open **one** PR with head `distill/...`, a body that summarizes the evidence in generic
    terms (including which gate each rule cleared — within-window vs long-horizon). **Do not merge.**
 5. Rotate the improvements issue **open-before-close**: open the next `improvements` issue,
-   migrate undistilled items **and the full reconciled watch list table** into it, then close
-   the old one with a link forward. The watch list must survive the rotation verbatim.
+   migrate undistilled items, **the full reconciled watch list table**, and the `## Skill
+   notes` section into it, then close the old one with a link forward. The watch list and
+   skill notes must survive the rotation verbatim.
 6. Set `last_run` to now in `config.local.json`.
 7. Output the PR URL and a one-line summary of what was proposed.
 
