@@ -110,10 +110,11 @@ Estimates are an internal planning tool (to decide what to break down); they do 
 
 ### Phase 4 — Close-out
 
-1. **Confidence-driven extra round (in-run, actionable — not a report for the user).** Before handing off, the Manager reviews where the cluster had low confidence (tasks with unresolved Verifier `unknown`s, wide SP divergence, Clarity-Editor rewrites that didn't fully land, UX calls left open). If low-confidence areas remain and the round cap + cost budget allow, run one more targeted Phase-2/3 round on just those tasks instead of shipping them shaky.
-2. **Skill meta-notes → eng-standards feedback loop.** Generate a short notes file capturing how the *skill* performed — harness friction, rules that didn't fire, recurring FIX-type patterns, jargon/context-leak that slipped through. This is about improving the skill, NOT a summary of the sprint for the user to read (the user reviews the sprint diff directly). Then:
+1. **SP stats block.** Manager generates the Story-Point stats block at the BOTTOM of the sprint once here (total + optional per-section breakdown) — not maintained by the Leader/Reviewer every editing round.
+2. **Confidence-driven extra round (in-run, actionable — not a report for the user).** Before handing off, the Manager reviews where the cluster had low confidence (tasks with unresolved Verifier `unknown`s, wide SP divergence, Clarity-Editor rewrites that didn't fully land, UX calls left open). If low-confidence areas remain and the round cap + cost budget allow, run one more targeted Phase-2/3 round on just those tasks instead of shipping them shaky.
+3. **Skill meta-notes → eng-standards feedback loop.** Generate a short notes file capturing how the *skill* performed — harness friction, rules that didn't fire, recurring FIX-type patterns, jargon/context-leak that slipped through. This is about improving the skill, NOT a summary of the sprint for the user to read (the user reviews the sprint diff directly). Then:
    - **Scrub all client/business content** — no client names, screen names, file paths, business logic, or confidential data. Post only the generic pattern (e.g. "Leader carried conversation-only context into N tickets" → candidate rule), never the specifics of this sprint.
-   - Append it as a comment on the eng-standards `improvements` issue (`gh issue list --label improvements --state open --limit 1` in the eng-standards repo), tagged `[sprint-refine]` so the distill bot knows it's skill-process feedback, not an eng-standards rule violation.
+   - Append it as a comment on the eng-standards `improvements` issue (`gh issue list --label improvements --state open --limit 1` in the eng-standards repo), tagged `[sprint-refine]` so the distill bot routes it to its skill-feedback track (proposes edits to the skill's own files, not the rule packs).
    - Suggest the user restart the agent to save context.
 
 ## Cost guard (mandatory)

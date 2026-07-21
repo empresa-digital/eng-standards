@@ -31,10 +31,12 @@ Read `distill/config.local.json`: `{ repos: [...], last_run: ISO8601 | null }`. 
 1. **Improvements issue:** the single open issue labelled `improvements` — read its comments.
    `gh issue list --repo empresa-digital/eng-standards --label improvements --state open --limit 1`
    - **Tagged skill-process comments** (e.g. `[sprint-refine]`, or any `[<skill-name>]` prefix)
-     are feedback about how an agent *skill* performed, **not** eng-standards rule evidence. Do
-     NOT cluster them into rule candidates (Step 3) or promote them into packs (Step 5). Keep
-     them under a separate `## Skill notes` section in the issue, carried across rotations like
-     the watch list; they are for the skill's own maintainer, not this library.
+     are feedback about how an agent *skill* performed. They are still meant to drive improvement
+     PRs — but against the **skill's own files** (`skills/<name>/`), not the rule packs. Handle
+     them in the separate skill-feedback track (Step 5b): do NOT cluster them into rule candidates
+     (Step 3) or promote them into packs (Step 5). To propose a sensible fix you must understand
+     the context the comment was generated in, so read the referenced skill's `SKILL.md` +
+     `references/` before proposing an edit.
 2. **Live review comments:** for each repo in `config.local.json`, fetch PR **review
    comments created since `last_run`** (e.g. `gh api` on the repo's pulls/comments with a
    `since` filter, or `gh search`). Never copy sensitive source content out of those repos.
@@ -77,7 +79,24 @@ A pattern is promoted to a proposed rule **this run** if it is seen this run (`m
   slow burn a single window would miss).
 
 Everything promoted still passes the sorting test + dedup. A promoted pattern is **removed
-from the watch list** (it's a rule now). If nothing qualifies, go to Step 6a; else Step 6b.
+from the watch list** (it's a rule now). If neither this track nor the skill-feedback track
+(Step 5b) qualifies, go to Step 6a; else Step 6b.
+
+## Step 5b — skill-feedback track (tagged comments)
+
+Runs in parallel with the rule track — same discipline, different target (the skill files, not
+the packs):
+
+1. Group the tagged skill-process comments by skill (`[<skill-name>]`). Keep their long-horizon
+   memory in the issue's `## Skill notes` section, same watch-list mechanics as Step 4
+   (`pattern | first seen | last seen | total | misses`, aged out at `misses ≥ 5`).
+2. A skill pattern promotes when it recurred **≥2×** this window or is clearly high-value, **or**
+   its cumulative `total ≥ 3`. One-offs stay on the watch list.
+3. For each promoted pattern: read the target skill's `SKILL.md` + `references/`, dedup against
+   what the skill already says (don't re-add existing guidance), and prepare a concrete edit to
+   the skill files that addresses the feedback. Genericize — no client/business content.
+4. A promoted skill pattern is **removed from the `## Skill notes` watch list** once addressed
+   (it's in the PR now).
 
 ## Step 6a — nothing to propose
 
@@ -87,10 +106,13 @@ now in `config.local.json`, and output:
 
 ## Step 6b — propose (one PR, never merged)
 
-1. Branch `distill/<YYYY-MM-DD>-proposals`.
-2. Add/edit rules in the correct pack — apply the sorting test and the "Adding a rule"
-   checklist in `CONTRIBUTING.md`. Genericize every example; **no client names, business
-   logic, internal paths, or confidential data** (this repo is public).
+1. Branch `distill/<YYYY-MM-DD>-proposals`. The single PR carries this run's proposals — rule
+   changes and/or skill-file edits; keep the two clearly separated in the body.
+2. **Rule promotions:** add/edit rules in the correct pack — apply the sorting test and the
+   "Adding a rule" checklist in `CONTRIBUTING.md`. Genericize every example; **no client names,
+   business logic, internal paths, or confidential data** (this repo is public).
+2b. **Skill promotions (Step 5b):** edit the target skill's files under `skills/<name>/` to
+   address the promoted feedback. Same genericization bar.
 3. `make validate` must pass; re-run `make eval` so new `wrong` fixtures join the eval.
 4. Open **one** PR with head `distill/...`, a body that summarizes the evidence in generic
    terms (including which gate each rule cleared — within-window vs long-horizon). **Do not merge.**

@@ -26,7 +26,7 @@ Items nest to multiple levels. Use **2-space indent** per level:
 
 ## Tasks and SP tags
 
-A **task** is any item that carries a Story-Point estimate, at ANY nesting level. To break a task down, promote a sub-item into a task by giving it its own SP estimate.
+A **task** is any item that carries a Story-Point estimate, at ANY nesting level. One way to break a task down is to promote its sub-items into tasks by giving each its own SP estimate — but that's only one option (see "Breaking tasks down" in `leader.md`: children, root-level siblings, or moving one to another section can all be right depending on how the work groups).
 
 Every task MUST have:
 1. A checkbox (`- [ ]`).
@@ -34,7 +34,9 @@ Every task MUST have:
 
 Optional: `@assignee` inline after the item text.
 
-Non-task sub-items do NOT need an SP tag.
+Non-task sub-items DO NOT have an SP tag.
+
+**Do not nest estimated tasks.** A task carrying an SP tag must not contain another SP-tagged task among its descendants — it's ambiguous whether the parent's SP already accounts for the children's. When a parent needs to split into estimated pieces, drop the parent's SP tag and make the pieces sibling tasks (nested under a shared unestimated context line, or at the section root).
 
 ## Section structure
 
@@ -44,16 +46,20 @@ Non-task sub-items do NOT need an SP tag.
 ## Goals
 ...
 
-## Section Name   (H2, H3, or **bold**)
+## Section Name  (H2)
 
-### Subsection    (optional)
+### Subsection Name   (H3, optional)
 
-#### Feature Name (optional, for grouping related tasks)
+#### Subsubsection Name   (H4 or **bold**, optional, for grouping related tasks)
 
 - [ ] Task description `N SP` @assignee
   - Context or detail sub-item
-  - [ ] Tracked sub-step (no SP = not a task)
-    - [ ] Sub-sub-step with own SP `1 SP`
+    - [ ] Tracked sub-step (no SP = not a task)
+  - Some other detail
+- [ ] Update all pipelines:
+    - [ ] Pipeline A `1 SP`  (is a task)
+    - [ ] Pipeline B `2 SP`  (is a task)
+    - [ ] Pipeline C `1 SP`  (is a task)
 
 ## Stretch
 ...
@@ -65,38 +71,38 @@ Non-task sub-items do NOT need an SP tag.
 ...
 ```
 
+The fixed H2 sections are **Goals / Stretch / Backlog / Open Questions**. The task-group sections between them (and any subsections) can be named freely to group related tasks — feature names, "Bugs", "Tech Debt", "UX Improvements", or whatever splits the current tasks into comprehensible, related groups. Use H3/H4 to nest those groups when the sprint is large; don't keep every task at the section root.
+
 ## Task first line
 
-Each task's first line states the concrete *what* in plain terms — the change, the file/screen, the behavior. It must carry the ticket on its own. Keep jargon and backend method/field names out of the first line (put them as a sub-item if the dev needs them). Sentences that only make sense with the conversation that produced the draft (dropped decisions, "for later" asides) do not belong in the sprint at all.
-
-## Blockquotes
-
-Blockquotes (`>`) are for context on a **larger feature** only, and only rarely. They MUST NOT carry context for an individual task — that is always a sub-item under the task.
+Each task's first line states the concrete *what* in plain terms — the change, the file/screen, the behavior — leaning on the surrounding section/subsection context rather than repeating it. Keep internal jargon and implementation details (method/field names, etc.) out of the first line unless they add clarity; put them as a sub-item if the dev needs them. Sentences that only make sense with the conversation that produced the draft (dropped decisions, "for later" asides) do not belong in the sprint at all.
 
 ## Section granularity
 
-A section whose title is ~the same as the first line of its single item is too small. Group such items into a broader section (e.g. "Bugs", "Tech Debt") instead of one section per item.
+A section whose title is ~the same as the first line of its single item is too small. Group such items into a broader section (e.g. "Bugs", "Tech Debt", "New Feature …") instead of one section per item.
+
+Avoid adding comments to the beginning of a section (e.g. using blockquotes `>`) that really reference a specific task — anything that references a specific task belongs on the task's first line or as a sub-item. Blockquotes are only for context on a larger feature, and only rarely.
 
 ## SP stats block
 
-A Story-Point statistics block at the TOP and at the BOTTOM of the document is allowed and welcome (total SPs, and optionally a per-section breakdown). Use plain text or a simple table.
+A Story-Point statistics block at the BOTTOM of the document is allowed and welcome (total SPs, and optionally a per-section breakdown). Use plain text or a simple table. It's generated once at close-out, not maintained every editing round.
 
 ## Example
 
 ```markdown
-**Bugs on the sales screens:**
+## Bugs
 
 - [ ] Cancelling a sale does not remove the financial transaction `2 SP`
-- [ ] Fix old sales generating a zero-value transaction `3 SP`
-  - The salePrice field is empty on these products (field did not exist before)
-  - [ ] Migration to populate salePrice on saved sales orders
-- [ ] Fix cypress tests:
+- [ ] Old sales generate a zero-value transaction `3 SP`
+  - Root cause: `salePrice` is empty on these products (the field did not exist before)
+  - Includes a migration to populate `salePrice` on saved sales orders
+- [ ] Fix the cypress tests:
   - [ ] `sales-order-listing.cy.js`: "loads the page with stats and data" `1 SP`
-  - [ ] `cash-control-listing.cy.js`: "switches back to all reasons"
+  - [ ] `cash-control-listing.cy.js`: "switches back to all reasons" `1 SP`
 ```
 
 Notes from the example:
-- SP can sit on a sub-item or sub-sub-item; the parent may be unestimated context.
-- Non-task items still get `- [ ]` when you want to track they were handled.
-- A sub-item without an SP tag (e.g., "switches back to all reasons") is a tracked step, not a task.
+- SP sits on the item that is the actual unit of work, at whatever level that is — the parent "Old sales…" task, or each individual cypress-test child.
+- An unestimated parent ("Fix the cypress tests:") is a grouping/context line; its estimated children are the tasks (no SP on the parent → no nested estimated tasks).
+- Non-checkbox sub-items ("Root cause…", "Includes a migration…") are details of their task, not separate work.
 - Assignees via `@user` inline.

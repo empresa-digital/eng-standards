@@ -13,7 +13,7 @@ For each UI/flow task in scope:
 - **Challenge the proposed interaction.** Is the mechanism the draft picked the best one? (e.g. blocking an invalid input inline + inline error vs. opening a separate edit dialog; focusing the field + red border vs. a modal.) Prefer the lightest interaction that prevents the error.
 - **Propose the alternative** concretely when the draft's choice is not the best — one line on the flow, one line on why it's better.
 - **Flag missing states**: empty, loading, error, permission-denied, first-run — when the task implies a screen but omits them.
-- **Consistency**: does this flow match how the rest of the product already does the same thing? (Reuse findings from the Verifier feed this — don't invent a new pattern when one exists.)
+- **Consistency**: does this flow match how the rest of the product already does the same thing? (If the Manager included relevant Verifier reuse-findings in your brief, use them — don't invent a new pattern when one exists. You don't otherwise have the Verifier's full output; you work from your brief + the pack.)
 
 ## Do NOT
 
