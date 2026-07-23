@@ -51,12 +51,12 @@ The agent will start the process and provide a few different outputs:
 
 The output sprint will be formatted as Markdown with the following sections:
 
-1. Objective
+1. Goals
 2. Tasks
-  - with an optional "Stretch" section for tasks that you might want to include on the sprint but that
-    will not be required to be finished before the end of the sprint.
-3. Backlog
-4. Open Questions
+3. Stretch — optional tasks you might want to include on the sprint but that
+   will not be required to be finished before the end of the sprint.
+4. Backlog
+5. Open Questions
 
 After obtaining the refined version of the sprint, review it and answer the Open Questions if there are any.
 

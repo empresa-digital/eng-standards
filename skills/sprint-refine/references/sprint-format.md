@@ -46,11 +46,11 @@ Non-task sub-items DO NOT have an SP tag.
 ## Goals
 ...
 
-## Section Name  (H2)
+## Tasks
 
-### Subsection Name   (H3, optional)
+### Group Name   (H3 — a feature name, "Bugs", "Tech Debt", …)
 
-#### Subsubsection Name   (H4 or **bold**, optional, for grouping related tasks)
+#### Subgroup Name   (H4 or **bold**, optional, for further grouping)
 
 - [ ] Task description `N SP` @assignee
   - Context or detail sub-item
@@ -71,7 +71,7 @@ Non-task sub-items DO NOT have an SP tag.
 ...
 ```
 
-The fixed H2 sections are **Goals / Stretch / Backlog / Open Questions**. The task-group sections between them (and any subsections) can be named freely to group related tasks — feature names, "Bugs", "Tech Debt", "UX Improvements", or whatever splits the current tasks into comprehensible, related groups. Use H3/H4 to nest those groups when the sprint is large; don't keep every task at the section root.
+The fixed H2 sections are **Goals / Tasks / Stretch / Backlog / Open Questions**. Inside `## Tasks`, group related work under H3 (and H4) subsections named freely — feature names, "Bugs", "Tech Debt", "UX Improvements", or whatever splits the current tasks into comprehensible, related groups. Use that nesting when the sprint is large; don't keep every task directly under `## Tasks`.
 
 ## Task first line
 
