@@ -9,7 +9,9 @@ Refines a sprint draft into small, well-ordered, estimated tasks using a subagen
 
 ## When to use
 
-When invoked as `sprint-refine <sprint-file> [instruction]`. No instruction = entire sprint. With instruction = restricted scope (e.g., "only task X", "only what changed since the last commit").
+When invoked as `sprint-refine <sprint-file> [instruction]`. No instruction = the whole in-scope sprint (all tasks under `## Tasks` and `## Stretch`). With instruction = restricted scope (e.g., "only task X", "only what changed since the last commit").
+
+**`## Backlog` is out of scope by default** — the skill does NOT refine, estimate, or reorder backlog items. It only touches them if the user explicitly asks. A task moves between sections (Tasks ↔ Stretch ↔ Backlog) only on user request (typically a `FIX:` directive), never on the skill's own initiative.
 
 Does NOT commit anything. Does NOT open GitHub issues. Only writes the output file to disk; the requester reviews the diff and commits.
 
@@ -69,7 +71,7 @@ If the harness supports it, run long work in the background and yield to keep th
 
 1. Spawn Leader + Verifier + 3 Evaluators in parallel, each reading pack + sprint scope. Their Phase-1 job is only to surface questions (non-blocking) — nobody edits or votes yet:
    - Leader: questions that block refinement.
-   - Verifier: checks every factual claim in the sprint — local/codebase claims against real code, and external/third-party claims against official docs via web search — plus a proactive reuse scan on UI tasks; returns its findings list.
+   - Verifier: checks every factual claim in the sprint — local/codebase claims against real code, and external/third-party claims against official docs via web search — plus a proactive reuse scan on UI tasks (flag existing components/logic a task would otherwise duplicate). Returns its findings list. (The Verifier reads code; the reuse-finding is later fed to the Leader, and only as a short finding to the UX-Critic if relevant — the UX-Critic never reads backend files itself.)
    - Evaluators: flag anything that would block estimating a task (missing info they'd need to vote). They do NOT vote here — SP voting is Phase 3, one task at a time.
 2. Manager consolidates questions into `questions.md` grouped by task. Manager folds Verifier corrections into the question batch: confirmed facts are noted; wrong/missing claims become questions if they need user input, or are queued as Leader edits if the fix is unambiguous.
 3. Manager sends ONE message to the user with all questions. User replies in bulk.

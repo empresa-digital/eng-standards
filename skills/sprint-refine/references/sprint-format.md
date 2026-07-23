@@ -73,6 +73,8 @@ Non-task sub-items DO NOT have an SP tag.
 
 The fixed H2 sections are **Goals / Tasks / Stretch / Backlog / Open Questions**. Inside `## Tasks`, group related work under H3 (and H4) subsections named freely — feature names, "Bugs", "Tech Debt", "UX Improvements", or whatever splits the current tasks into comprehensible, related groups. Use that nesting when the sprint is large; don't keep every task directly under `## Tasks`.
 
+`## Backlog` is **out of scope by default**: only `## Tasks` and `## Stretch` get refined and estimated. Leave backlog items untouched unless the user explicitly asks; tasks change section only on user request, never on the skill's initiative.
+
 ## Task first line
 
 Each task's first line states the concrete *what* in plain terms — the change, the file/screen, the behavior — leaning on the surrounding section/subsection context rather than repeating it. Keep internal jargon and implementation details (method/field names, etc.) out of the first line unless they add clarity; put them as a sub-item if the dev needs them. Sentences that only make sense with the conversation that produced the draft (dropped decisions, "for later" asides) do not belong in the sprint at all.
