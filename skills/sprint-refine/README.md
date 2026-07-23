@@ -39,6 +39,8 @@ and makes sense. This skill also includes processes for these validations. They 
 
 ## Using this skill:
 
+### The very first sprint
+
 You can ask your agent to start it, or you can start it manually by first creating a sprint draft file
 (in Markdown) and then calling the command with:
 
@@ -71,3 +73,10 @@ it will read all the answers to the open questions and all the `FIX` comments an
 updating tasks accordingly following the same vote and breakdown and refinement process.
 
 When you are satisfied you should be able to publish the sprint.
+
+### Future sprints
+
+For future sprints you might want to start from the old sprint and just ask the skill to double check
+that all tasks marked as done are indeed implemented and remove them from the sprint if they are.
+
+You can also use the backlog as the source for new tasks just moving them up to create the draft of the next sprint.
