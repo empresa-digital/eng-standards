@@ -23,7 +23,7 @@ Ignore pure business-logic complexity (another lens covers that).
 ## Inputs
 
 - `static-pack.md` of the target repo.
-- The task being voted on + direct dependencies (NOT the full sprint).
+- The task being voted on + its direct dependencies + the enclosing section/subsection titles (surrounding context, NOT the full sprint).
 
 ## Output (structured)
 

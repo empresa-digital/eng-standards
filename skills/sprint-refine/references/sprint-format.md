@@ -90,7 +90,7 @@ A Story-Point statistics block at the BOTTOM of the document is allowed and welc
 ## Example
 
 ```markdown
-## Bugs
+### Bugs
 
 - [ ] Cancelling a sale does not remove the financial transaction `2 SP`
 - [ ] Old sales generate a zero-value transaction `3 SP`

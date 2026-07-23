@@ -34,7 +34,7 @@ Read `distill/config.local.json`: `{ repos: [...], last_run: ISO8601 | null }`. 
      are feedback about how an agent *skill* performed. They are still meant to drive improvement
      PRs — but against the **skill's own files** (`skills/<name>/`), not the rule packs. Handle
      them in the separate skill-feedback track (Step 5b): do NOT cluster them into rule candidates
-     (Step 3) or promote them into packs (Step 5). To propose a sensible fix you must understand
+     (Step 3) or promote them into packs (Step 5a). To propose a sensible fix you must understand
      the context the comment was generated in, so read the referenced skill's `SKILL.md` +
      `references/` before proposing an edit.
 2. **Live review comments:** for each repo in `config.local.json`, fetch PR **review
@@ -69,7 +69,7 @@ items already noted in prose in the issue. Then read the table and apply, in ord
 3. **Age out:** drop any row with **`misses ≥ 5`** (≈ a month at weekly cadence). List what
    was dropped under a short "Retired this run" note so the history is visible.
 
-## Step 5 — decide promotions
+## Step 5a — rule promotions
 
 A pattern is promoted to a proposed rule **this run** if it is seen this run (`misses = 0`)
 **and** meets either gate:
@@ -82,10 +82,10 @@ Everything promoted still passes the sorting test + dedup. A promoted pattern is
 from the watch list** (it's a rule now). If neither this track nor the skill-feedback track
 (Step 5b) qualifies, go to Step 6a; else Step 6b.
 
-## Step 5b — skill-feedback track (tagged comments)
+## Step 5b — skill-feedback promotions
 
-Runs in parallel with the rule track — same discipline, different target (the skill files, not
-the packs):
+Runs in parallel with the rule track (Step 5a) — same discipline, different target (the skill
+files, not the packs):
 
 1. Group the tagged skill-process comments by skill (`[<skill-name>]`). Keep their long-horizon
    memory in the issue's `## Skill notes` section, same watch-list mechanics as Step 4
@@ -108,20 +108,20 @@ now in `config.local.json`, and output:
 
 1. Branch `distill/<YYYY-MM-DD>-proposals`. The single PR carries this run's proposals — rule
    changes and/or skill-file edits; keep the two clearly separated in the body.
-2. **Rule promotions:** add/edit rules in the correct pack — apply the sorting test and the
-   "Adding a rule" checklist in `CONTRIBUTING.md`. Genericize every example; **no client names,
-   business logic, internal paths, or confidential data** (this repo is public).
-2b. **Skill promotions (Step 5b):** edit the target skill's files under `skills/<name>/` to
-   address the promoted feedback. Same genericization bar.
-3. `make validate` must pass; re-run `make eval` so new `wrong` fixtures join the eval.
-4. Open **one** PR with head `distill/...`, a body that summarizes the evidence in generic
+   a. **Rule promotions (Step 5a):** add/edit rules in the correct pack — apply the sorting test
+      and the "Adding a rule" checklist in `CONTRIBUTING.md`. Genericize every example; **no
+      client names, business logic, internal paths, or confidential data** (this repo is public).
+   b. **Skill promotions (Step 5b):** edit the target skill's files under `skills/<name>/` to
+      address the promoted feedback. Same genericization bar.
+2. `make validate` must pass; re-run `make eval` so new `wrong` fixtures join the eval.
+3. Open **one** PR with head `distill/...`, a body that summarizes the evidence in generic
    terms (including which gate each rule cleared — within-window vs long-horizon). **Do not merge.**
-5. Rotate the improvements issue **open-before-close**: open the next `improvements` issue,
+4. Rotate the improvements issue **open-before-close**: open the next `improvements` issue,
    migrate undistilled items, **the full reconciled watch list table**, and the `## Skill
    notes` section into it, then close the old one with a link forward. The watch list and
    skill notes must survive the rotation verbatim.
-6. Set `last_run` to now in `config.local.json`.
-7. Output the PR URL and a one-line summary of what was proposed.
+5. Set `last_run` to now in `config.local.json`.
+6. Output the PR URL and a one-line summary of what was proposed.
 
 ## Hard rules
 

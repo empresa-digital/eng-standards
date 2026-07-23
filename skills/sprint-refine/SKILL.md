@@ -33,7 +33,7 @@ Expensive models enter the subagent flow only as the Clarity-Editor (`opus`), sc
 
 The target repo is different from the sprint directory. Before Phase 0, ask the user OR infer from the directory name/sprint content which repo(s) to target. When ambiguous, ask in a batch alongside Phase 1.
 
-Agents receive: static pack + relevant sprint excerpt. Evaluators: only the task being voted on + direct dependencies. Leader/Reviewer: the current output file read from disk.
+Agents receive: static pack + relevant sprint excerpt. Evaluators: the task being voted on + its direct dependencies + the enclosing section/subsection titles (the surrounding context a task inherits from its place in the hierarchy — so a ticket doesn't have to repeat it). Leader/Reviewer: the current output file read from disk.
 
 ## Subagent invocation
 
@@ -52,7 +52,7 @@ If the harness supports it, run long work in the background and yield to keep th
 1. **Determine output path.** The skill MUST NOT edit the input file.
    - Strip any trailing `-draft` or `-refined` suffix from the input file's basename.
    - Output file = `<base>-refined.md` in the same directory.
-   - If that file already exists (and is not the input file), append `-2`, `-3`, … until the name is free (`<base>-refined-2.md`, etc.).
+   - If that file already exists, append `-2`, `-3`, … until the name is free (`<base>-refined-2.md`, etc.).
    - Report the chosen output path to the user in the final message.
    - Copy the input file to the output path before the Leader makes any edits.
 
@@ -67,31 +67,33 @@ If the harness supports it, run long work in the background and yield to keep th
 
 ### Phase 1 — Understanding + questions (batch)
 
-1. Spawn Leader + Verifier + 3 Evaluators in parallel. Each reads pack + sprint scope and returns questions (non-blocking). The Verifier additionally checks every factual claim in the sprint — local/codebase claims against real code, and external/third-party claims against official docs via web search — plus a proactive reuse scan on UI tasks, and returns its findings list.
+1. Spawn Leader + Verifier + 3 Evaluators in parallel, each reading pack + sprint scope. Their Phase-1 job is only to surface questions (non-blocking) — nobody edits or votes yet:
+   - Leader: questions that block refinement.
+   - Verifier: checks every factual claim in the sprint — local/codebase claims against real code, and external/third-party claims against official docs via web search — plus a proactive reuse scan on UI tasks; returns its findings list.
+   - Evaluators: flag anything that would block estimating a task (missing info they'd need to vote). They do NOT vote here — SP voting is Phase 3, one task at a time.
 2. Manager consolidates questions into `questions.md` grouped by task. Manager folds Verifier corrections into the question batch: confirmed facts are noted; wrong/missing claims become questions if they need user input, or are queued as Leader edits if the fix is unambiguous.
 3. Manager sends ONE message to the user with all questions. User replies in bulk.
 4. Manager relays answers; new round only on affected tasks (does not restart everything).
 
 **FIX: annotations.** The input sprint may contain inline annotations prefixed `FIX:` (as well as ordinary inline comments). Every `FIX:` is an AUTHORITATIVE directive from the user. During Phase 1:
 - Route any `FIX:` that makes a claim about the codebase to the Verifier.
-- Surface any `FIX:` that is a question or decision in the Phase-1 question batch to the user.
+- If acting on a `FIX:` raises a new question or an open decision (it's ambiguous, or resolving it needs the user's input), add THAT question to the Phase-1 question batch.
 - Queue unambiguous `FIX:` directives as Leader edits for Phase 2.
 
 ### Phase 2 — Editing + review
 
 1. Leader edits the output file via targeted diffs: sections, headings, short sub-bullets under each task, inline snippets when necessary, ordering by (1) priority, (2) dependencies before dependents. Loads and enforces `references/sprint-format.md`. Treats the draft as suspect (rewrites to stand alone, strips conversation-only context).
 2. Leader applies all Verifier corrections (wrong facts, missing info, reuse findings) and all resolved `FIX:` directives. Resolved `FIX:` annotations are removed or folded into corrected task text.
-3. Three critics run **in parallel** over the sections changed this round → Leader fixes → re-run until they approve:
+3. Three critics run **in parallel** over the sections changed this round → Leader fixes → re-run until both the Reviewer and the Clarity-Editor return `APPROVED`:
    - Reviewer (form/structure against `references/sprint-format.md`).
    - Clarity-Editor (`opus`, fresh spawn, cold-reader test, rewrite diffs).
    - UX-Critic (only if UI/flow in scope; else skip).
-   Convergence = Reviewer `APPROVED` **and** Clarity-Editor `APPROVED`.
-4. **Cap: 3 rounds.** If not converging, Manager reports the deadlock to the user instead of looping.
+4. **Cap: 3 rounds.** If unanimous approval isn't reached in 3 rounds, the Manager reports the deadlock to the user instead of looping.
 
 ### Phase 3 — SP voting
 
 1. For each task in scope: spawn 3 **fresh** Evaluators (stateless), each with their lens. Each votes SP + 1-line justification. **Votes in parallel.**
-2. **Large task** (median > 3 SP = 3 days): Leader breaks into subtasks → back to Phase 2 for the new ones → re-vote. **Cap: 2 break cycles per task.** If still over, mark `[NEEDS-SPLIT]` and continue.
+2. **Large task** (median > 3 SP): Leader breaks into subtasks → back to Phase 2 for the new ones → re-vote. **Cap: 2 break cycles per task.** If still over, mark `[NEEDS-SPLIT]` and continue.
 3. **Divergence** (range > 2 SP, or a vote > 2× median): outlier explains, others counter, Leader judges:
    - Outlier wrong → ignore or adjust.
    - Outlier right → Leader edits the task to surface the point (break if needed) → re-vote.
@@ -99,12 +101,7 @@ If the harness supports it, run long work in the background and yield to keep th
 
 ### SP anchors (1 SP = 1 day)
 
-Always include in Evaluator prompts:
-- 0.5 SP: localized change, 1 file, no migration/complex test.
-- 1 SP: few files, simple new logic + tests.
-- 2 SP: complete small feature (handler + domain + tests) or multi-file refactor.
-- 3 SP: medium feature, multi-layer, light integrations.
-- >3 SP: schema migration, new external integration, or design uncertainty → break.
+The day-based rubric (0.5 / 1 / 2 / 3 / >3 SP) lives in each Evaluator's role prompt (`references/evaluator-*.md`) — it is NOT re-injected from here, so the two stay in sync in one place. The Manager only needs the derived rule: **median > 3 SP → break the task** (a `>3 SP` vote means schema migration, new external integration, or design uncertainty).
 
 Estimates are an internal planning tool (to decide what to break down); they do not need to be exposed to the wider team.
 
@@ -115,13 +112,12 @@ Estimates are an internal planning tool (to decide what to break down); they do 
 3. **Skill meta-notes → eng-standards feedback loop.** Generate a short notes file capturing how the *skill* performed — harness friction, rules that didn't fire, recurring FIX-type patterns, jargon/context-leak that slipped through. This is about improving the skill, NOT a summary of the sprint for the user to read (the user reviews the sprint diff directly). Then:
    - **Scrub all client/business content** — no client names, screen names, file paths, business logic, or confidential data. Post only the generic pattern (e.g. "Leader carried conversation-only context into N tickets" → candidate rule), never the specifics of this sprint.
    - Append it as a comment on the eng-standards `improvements` issue (`gh issue list --label improvements --state open --limit 1` in the eng-standards repo), tagged `[sprint-refine]` so the distill bot routes it to its skill-feedback track (proposes edits to the skill's own files, not the rule packs).
-   - Suggest the user restart the agent to save context.
 
 ## Cost guard (mandatory)
 
 After **each completed phase** (and within Phase 2/3, every 2 rounds), Manager tallies tokens spent and maintains a running total in session memory. Default to **summing the tokens each subagent reports on completion** — a harness token-status call (e.g. `session_status`) may omit spawned-subagent usage, so don't rely on it alone.
 
-**Hard limit: ~$5 USD in tokens per run** (kept at $5 even with the Opus Clarity-Editor — its scope is only the round's diff, which should stay small; the automatic pause below is the backstop if it doesn't). Quick estimate (opus $15/MTok in, $75/MTok out; sonnet $3/$15; haiku ~$1/$5):
+**Hard limit: ~$5 USD in tokens per run.** Quick estimate (opus $15/MTok in, $75/MTok out; sonnet $3/$15; haiku ~$1/$5):
 - The Clarity-Editor is the cost driver to watch — Opus on the round's changed sections. For this skill, ~500k–1M total mixed tokens is a yellow flag.
 
 Checkpoints:
@@ -135,7 +131,7 @@ If the Phase-1 estimate already signals a >$5 run, pause before starting Phase 2
 - 3 review rounds (Phase 2), critics in parallel.
 - 2 break cycles (Phase 3).
 - Static pack reused when the target repo hasn't changed (commit hash + dirty + mtime).
-- Sprint output file always read from disk, never re-emitted in output.
+- Sprint output file always edited in-place, never re-emitted in output.
 - Evaluators receive only the task being voted on + dependencies, not the full sprint.
 - Questions to the user always in batch, 1 message per round.
 
