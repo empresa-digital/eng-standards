@@ -73,7 +73,7 @@ Rewrite tasks in scope applying the rules above and all Verifier corrections. Ea
 
 ## Phase 3 (breaking)
 
-When a task votes median > 3 SP, break it into smaller tasks. The pieces are NOT necessarily children of the original: depending on how the work groups, they can be child sub-tasks under a shared context line, sibling tasks at the section root, or — if a piece really belongs elsewhere — moved to another section. Pick the grouping that reads clearest; keep the parent unestimated (no nested estimated tasks). Return to Phase 2 only for the new pieces.
+When a task votes median > 3 SP, break it into smaller tasks. The pieces are NOT necessarily children of the original: depending on how the work groups, they can be child sub-tasks under a shared context line, sibling tasks in the same H3 subgroup, or moved to a different H3 subgroup within `## Tasks`/`## Stretch` that fits better. Pick the grouping that reads clearest; keep the parent unestimated (no nested estimated tasks). Do NOT relocate a piece to a different H2 section (e.g. `## Backlog`) on your own — that needs a user request. Return to Phase 2 only for the new pieces.
 
 ## Expected output per turn
 

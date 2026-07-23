@@ -71,7 +71,7 @@ Non-task sub-items DO NOT have an SP tag.
 ...
 ```
 
-The fixed H2 sections are **Goals / Tasks / Stretch / Backlog / Open Questions**. Inside `## Tasks`, group related work under H3 (and H4) subsections named freely — feature names, "Bugs", "Tech Debt", "UX Improvements", or whatever splits the current tasks into comprehensible, related groups. Use that nesting when the sprint is large; don't keep every task directly under `## Tasks`.
+The fixed H2 sections are **Goals / Tasks / Stretch / Backlog / Open Questions**. Inside `## Tasks`, group related work under H3 (and H4) subsections named freely — feature names, "Bugs", "Tech Debt", "UX Improvements", or whatever splits the current tasks into comprehensible, related groups. Use that nesting when the sprint is large: organize tasks into H3 subgroups rather than leaving them all ungrouped at the top level of `## Tasks`. This is purely about grouping *within* `## Tasks` — it never means moving a task out to a different H2 section (see the scope rule below).
 
 `## Backlog` is **out of scope by default**: only `## Tasks` and `## Stretch` get refined and estimated. Leave backlog items untouched unless the user explicitly asks; tasks change section only on user request, never on the skill's initiative.
 
