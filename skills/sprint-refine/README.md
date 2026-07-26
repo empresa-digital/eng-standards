@@ -4,6 +4,14 @@ The sprint-refine skill converts a list of hand-written tasks (passed as Markdow
 into detailed task descriptions with estimated story points, breaking down any complex tasks into
 smaller, more refined tasks that can be easily understood and implemented by anyone on the team or by an AI agent.
 
+TLDR of what this skill was created to provide:
+
+1. Consistent estimation of story points for tasks
+2. An effective pre-planning session that turns abstract one-liners into concrete task descriptions, including:
+  a. Automatic breakdown of big tasks into small, manageable tasks of 3SP or less
+  b. Automatic exploration of the problem, looking for risks and edge cases that might not be obvious at first glance
+  c. Automatic checking for factual errors (e.g. the implementation exists, the required functions exist in the docs, etc.)
+
 ## Why use this skill
 
 I personally don't fully trust my ability to break down a number of big tasks into small enough tasks that we can be confident
