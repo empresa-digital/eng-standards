@@ -6,7 +6,7 @@ meta:
   language: en
 
 rules:
-  - id: git-branch-from-updated-main
+  - id: git-branch-from-updated-master
     topic: Branching
     severity: blocker
     lintable: false
@@ -20,7 +20,7 @@ rules:
         git checkout add-create-endpoint
         git checkout -b add-list-endpoint
     right:
-      description: Branch from a freshly pulled main.
+      description: Branch from a freshly pulled master.
       code: |
         git checkout master
         git pull
@@ -46,7 +46,7 @@ rules:
         git commit -m "Address review follow-up"
         git push            # recreates origin/feature-x from the stale base
     right:
-      description: Confirm the PR state, then branch the follow-up off fresh main.
+      description: Confirm the PR state, then branch the follow-up off fresh master.
       code: |
         gh pr view feature-x --json state   # -> MERGED
         git checkout master && git pull

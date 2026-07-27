@@ -241,6 +241,30 @@ rules:
       so they don't travel — the portable parts (imperative, concise, clean history)
       live in packs/git.yaml.
 
+  - id: ed-default-branch-master
+    topic: Git
+    severity: nit
+    lintable: false
+    sources: [vini-style]
+    principle: >
+      The default branch is always `master`, never `main`. New repos set
+      `init.defaultBranch = master`; every command, CI config, and doc that names the
+      default branch uses `master`.
+    wrong:
+      code: |
+        git checkout main && git pull        # default branch is master here
+        git push -u origin main
+        # .github/workflows: on: { push: { branches: [main] } }
+    right:
+      code: |
+        git checkout master && git pull
+        git push -u origin master
+        # .github/workflows: on: { push: { branches: [master] } }
+    reason: >
+      empresa-digital standardizes on `master`. The portable rules in packs/git.yaml name
+      the default branch directly; this org rule pins that name so commands and CI never
+      split between `master` and `main`.
+
   - id: ed-use-testtools-helpers
     topic: Testing
     severity: nit
