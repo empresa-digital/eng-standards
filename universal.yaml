@@ -120,6 +120,45 @@ rules:
       Defensive code for impossible states adds noise, hides the real control flow,
       and implies failure modes that don't exist.
 
+  - id: u-handle-failures-on-critical-paths
+    topic: Error handling
+    severity: blocker
+    lintable: false
+    sources: ["agent-improvements#12"]
+    principle: >
+      Any async operation or background worker on a critical path (frontend boot / first
+      render, a server request handler, a job goroutine) must handle its own failure:
+      catch rejections, check every returned error, and recover panics — then report or
+      degrade gracefully. Never leave the happy path assuming the operation always
+      succeeds, and never let a background goroutine crash the process or die silently.
+    wrong:
+      description: A worker goroutine whose panic (or ignored error) takes down the process — or with a recover-less pool, silently drops the job with no report.
+      code: |
+        go func() {
+            // panics on a nil map / malformed message, or returns an error that's
+            // discarded: the process crashes, or the job vanishes with no log
+            process(msg)
+        }()
+    right:
+      description: Recover the panic and report the error so the worker degrades instead of dying silently.
+      code: |
+        go func() {
+            defer func() {
+                if r := recover(); r != nil {
+                    reportError(fmt.Errorf("worker panic: %v", r))
+                }
+            }()
+            if err := process(msg); err != nil {
+                reportError(err)
+            }
+        }()
+    reason: >
+      Unhandled failures on a critical path fail silently: a frontend boot rejection blanks
+      the UI, an unrecovered goroutine panic crashes the server or drops the job, and
+      monitoring either stays empty or fills with misleading errors. Handle the failure
+      where it happens — and verify the promise/error contract of any third-party call in
+      the installed source before assuming it always succeeds.
+
   - id: u-no-dead-scaffolding
     topic: Cleanliness
     severity: nit
