@@ -14,7 +14,7 @@
 #   ENG_DIR        rule library root         (default: ~/.cache/eng-standards)
 #   REPO_DIR       local checkout to review  (default: ~/projects/<repo-basename>)
 #   ORG_PROFILE    org yaml under orgs/       (default: empresa-digital.yaml)
-#   MODEL          model for the review pass  (default: sonnet)
+#   MODEL          model for the review pass  (default: opus)
 #
 set -euo pipefail
 
@@ -25,11 +25,11 @@ POST="${3:-}"
 ENG_DIR="${ENG_DIR:-$HOME/.cache/eng-standards}"
 REPO_DIR="${REPO_DIR:-$HOME/projects/$(basename "$REPO")}"
 ORG_PROFILE="${ORG_PROFILE:-empresa-digital.yaml}"
-MODEL="${MODEL:-sonnet}"
+# Reviews are important, so they're worth Opus.
+MODEL="${MODEL:-opus}"
 
-# Plan token, not API. Fall back to the CodeCompanion token if present.
-export CLAUDE_CODE_OAUTH_TOKEN="${CLAUDE_CODE_OAUTH_TOKEN:-${CODECOMPANION_OAUTH_TOKEN:-}}"
-[ -n "$CLAUDE_CODE_OAUTH_TOKEN" ] || { echo "error: set CLAUDE_CODE_OAUTH_TOKEN (or CODECOMPANION_OAUTH_TOKEN)" >&2; exit 1; }
+# Auth via the Claude Code plan token (not the metered API), so runs stay on the plan.
+[ -n "${CLAUDE_CODE_OAUTH_TOKEN:-}" ] || { echo "error: set CLAUDE_CODE_OAUTH_TOKEN" >&2; exit 1; }
 
 WORK="$(mktemp -d)"
 WT="$WORK/worktree"

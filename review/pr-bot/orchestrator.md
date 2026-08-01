@@ -23,12 +23,13 @@ and skeptical; a false "safe" is worse than a false "needs human".
 2. **Architecture pass.** Read `$ENG_DIR/review/architecture-reviewer.md` and run that pass
    yourself on the same change. Fold its findings into a `## Architecture` section.
 
-3. **Verdict.** Emit this block **last**, verbatim shape:
+3. **Verdict.** Emit this block **last**, verbatim shape (replace each `A|B` with the
+   one option that applies — never leave the pipe in):
 
 ```
 === VERDICT ===
-CLASSIFICATION: SAFE
-TRIGGERS: none
+CLASSIFICATION: NEEDS_HUMAN|SAFE
+TRIGGERS: <comma-separated triggers>|none
 ```
 
 `CLASSIFICATION` is `NEEDS_HUMAN` if **any** of these hold; when you are unsure, choose
@@ -44,4 +45,7 @@ TRIGGERS: none
 Otherwise `CLASSIFICATION: SAFE`. `TRIGGERS` is the comma-separated list of the conditions
 above that fired, or `none`.
 
-Output only the review report followed by the verdict block. No preamble, no sign-off.
+Output only the review report followed by the verdict block. No preamble, no sign-off:
+your stdout is captured by `run.sh`, which parses the verdict line and embeds the report
+**verbatim** inside the PR comment humans read — any chatter would leak straight into that
+comment.
