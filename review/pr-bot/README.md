@@ -16,11 +16,16 @@ review/pr-bot/run.sh empresa-digital/empresa-digital 557
 review/pr-bot/run.sh empresa-digital/empresa-digital 557 --post
 ```
 
-## Auth — plan token, not the metered API
+## Auth
 
-Set `CLAUDE_CODE_OAUTH_TOKEN` to a Claude Code **plan** OAuth token (generate with
-`claude setup-token`). Runs then bill against the plan, not the Anthropic API. The
-script also falls back to `CODECOMPANION_OAUTH_TOKEN` if that is exported.
+- **Locally:** nothing to set — the script uses your existing `claude` login.
+- **In CI:** export `CLAUDE_CODE_OAUTH_TOKEN` with a Claude Code **plan** OAuth token
+  (generate with `claude setup-token`) so runs bill against the plan, not the metered
+  Anthropic API.
+
+> Don't export `CLAUDE_CODE_OAUTH_TOKEN` globally on a dev machine (e.g. in `.bashrc`):
+> the CLI reads it and it can shadow your interactive login, breaking things like
+> `/usage`. Set it only in the CI job's environment.
 
 ## What it does
 
@@ -29,9 +34,11 @@ script also falls back to `CODECOMPANION_OAUTH_TOKEN` if that is exported.
    tree or current branch).
 3. Runs `review/reviewer.md` then `review/architecture-reviewer.md` as a single
    top-level orchestration (`review/pr-bot/orchestrator.md`), against the full repo.
-4. Parses a machine verdict and posts a Portuguese comment: a SAFE line
-   (`PR considerado seguro pra merge sem revisão extra`) or a `Requer revisão humana`
-   line with the triggers, plus the full review folded in a `<details>` block.
+4. Parses a machine verdict and posts a comment: a SAFE line or a "human review
+   required" line with the triggers, plus the full review folded in a `<details>`
+   block. The comment's language and its fixed strings come from the org profile's
+   `meta.pr_review` block (see [Language](#language)), so the tool itself is
+   language-neutral.
 
 ## Classification (fail-closed)
 
@@ -50,12 +57,34 @@ script also falls back to `CODECOMPANION_OAUTH_TOKEN` if that is exported.
 | `ENG_DIR` | `~/.cache/eng-standards` | rule library root |
 | `REPO_DIR` | `~/projects/<repo-basename>` | local checkout to review from |
 | `ORG_PROFILE` | `empresa-digital.yaml` | org profile under `orgs/` |
-| `MODEL` | `sonnet` | model for the review pass |
+| `MODEL` | `opus` | model for the review pass |
+
+## Language
+
+The bot has no language of its own. The review prose and the fixed comment strings
+(title, headers, footer) come from the active org profile's `meta.pr_review` block:
+
+```yaml
+meta:
+  pr_review:
+    language: pt-BR
+    comment:
+      title: "..."
+      details_summary: "..."
+      safe_header: "..."
+      needs_human_header: "..."
+      reasons_label: "..."
+      footer: "..."
+```
+
+If a profile omits that block, the bot falls back to generic English. To localize the
+bot for another org, edit that org's profile — not this tool. (Reading it needs
+`python3` + `pyyaml`, which the repo already uses for `scripts/validate.py`.)
 
 ## Status
 
 **Phase 1 — experimental.** The bot only comments; it does **not** merge or approve.
-Otávio self-merges PRs it marks SAFE. Phase 2 (bot auto-approves SAFE on the team's
-behalf) waits until its SAFE calls are shown to match human judgment. A natural home
-for the trigger is a GitHub Actions `pull_request` workflow; today it runs on demand /
-from a local cron.
+The PR author self-merges changes it marks SAFE. Phase 2 (bot auto-approves SAFE on the
+team's behalf) waits until its SAFE calls are shown to match human judgment. A natural
+home for the trigger is a GitHub Actions `pull_request` workflow; today it runs on
+demand / from a local cron.

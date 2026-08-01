@@ -4,8 +4,10 @@
 # GitHub PR, classifies it SAFE vs NEEDS_HUMAN (fail-closed), and prints a
 # ready-to-post comment. With --post it publishes the comment on the PR.
 #
-# Auth: uses the Claude Code *plan* OAuth token (CLAUDE_CODE_OAUTH_TOKEN),
-# never the metered Anthropic API — so runs don't bill outside the plan.
+# Auth: locally, relies on your existing `claude` login (nothing to set). In CI,
+# pass a Claude Code *plan* OAuth token as CLAUDE_CODE_OAUTH_TOKEN so runs stay on
+# the plan rather than the metered API. Do NOT export that token globally on a dev
+# machine — the CLI reads it and it can shadow your interactive login (e.g. `/usage`).
 #
 # Usage:
 #   review/pr-bot/run.sh <owner/repo> <pr-number> [--post]
@@ -28,8 +30,32 @@ ORG_PROFILE="${ORG_PROFILE:-empresa-digital.yaml}"
 # Reviews are important, so they're worth Opus.
 MODEL="${MODEL:-opus}"
 
-# Auth via the Claude Code plan token (not the metered API), so runs stay on the plan.
-[ -n "${CLAUDE_CODE_OAUTH_TOKEN:-}" ] || { echo "error: set CLAUDE_CODE_OAUTH_TOKEN" >&2; exit 1; }
+# Auth: use CLAUDE_CODE_OAUTH_TOKEN when provided (e.g. CI, keeps runs on the plan);
+# otherwise fall back to the machine's existing `claude` login. Never require it.
+[ -n "${CLAUDE_CODE_OAUTH_TOKEN:-}" ] && export CLAUDE_CODE_OAUTH_TOKEN
+
+# The bot's language and its fixed comment strings live in the org profile, so this
+# shared tool carries no company- or language-specific text. Fall back to generic
+# English when a profile does not define meta.pr_review.
+load_cfg() {
+  python3 - "$ENG_DIR/orgs/$ORG_PROFILE" <<'PY'
+import sys, yaml
+d = yaml.safe_load(open(sys.argv[1])) or {}
+pr = ((d.get("meta") or {}).get("pr_review") or {})
+c = pr.get("comment") or {}
+def g(k, dflt): return c.get(k) or dflt
+print(pr.get("language") or "English")
+print(g("title", "🤖 **Automated pre-review** — eng-standards · *experimental*"))
+print(g("details_summary", "Full review"))
+print(g("safe_header", "✅ **Considered safe to merge without extra review.**"))
+print(g("needs_human_header", "🔴 **Human review required before merge.**"))
+print(g("reasons_label", "Reasons:"))
+print(g("footer", "_Automation under test; may still be noisy. Feedback helps calibrate._"))
+PY
+}
+mapfile -t CFG < <(load_cfg)
+PR_REVIEW_LANG="${CFG[0]}"; C_TITLE="${CFG[1]}"; C_SUMMARY="${CFG[2]}"
+C_SAFE="${CFG[3]}"; C_NEEDS="${CFG[4]}"; C_REASONS="${CFG[5]}"; C_FOOTER="${CFG[6]}"
 
 WORK="$(mktemp -d)"
 WT="$WORK/worktree"
@@ -53,7 +79,8 @@ git -C "$REPO_DIR" worktree add -q --detach "$WT" "$HEAD_SHA"
 
 # Build the orchestrator prompt with paths substituted in.
 PROMPT="$(DIFF_FILE="$DIFF_FILE" META_FILE="$META_FILE" ENG_DIR="$ENG_DIR" \
-  ORG_PROFILE="$ORG_PROFILE" envsubst '$DIFF_FILE $META_FILE $ENG_DIR $ORG_PROFILE' \
+  ORG_PROFILE="$ORG_PROFILE" PR_REVIEW_LANG="$PR_REVIEW_LANG" \
+  envsubst '$DIFF_FILE $META_FILE $ENG_DIR $ORG_PROFILE $PR_REVIEW_LANG' \
   < "$(dirname "$0")/orchestrator.md")"
 
 echo ">> running review (model: $MODEL)" >&2
@@ -75,25 +102,25 @@ BODY="$(printf '%s\n' "$BODY" | awk 'p||/^## /{p=1} p')"                # start 
 BODY="$(printf '%s\n' "$BODY" | awk '{a[n++]=$0} END{e=n-1; while(e>=0 && (a[e]~/^[[:space:]]*$/||a[e]=="```"||a[e]=="---")) e--; for(i=0;i<=e;i++) print a[i]}')"
 
 if [ "$CLASS" = "SAFE" ]; then
-  HEADER=$'✅ **PR considerado seguro pra merge sem revisão extra.**'
+  HEADER="$C_SAFE"
 else
-  HEADER=$'🔴 **Requer revisão humana antes do merge.**'
-  [ -n "${TRIGGERS:-}" ] && [ "$TRIGGERS" != "none" ] && HEADER+=$'\nMotivos: '"$TRIGGERS"
+  HEADER="$C_NEEDS"
+  [ -n "${TRIGGERS:-}" ] && [ "$TRIGGERS" != "none" ] && HEADER+=$'\n'"$C_REASONS $TRIGGERS"
 fi
 
 COMMENT="$(cat <<EOF
-🤖 **Pré-revisão automática** — eng-standards · *experimental*
+$C_TITLE
 
 $HEADER
 
-<details><summary>Revisão completa</summary>
+<details><summary>$C_SUMMARY</summary>
 
 $BODY
 
 </details>
 
 ---
-_Automação em fase de testes; ainda pode gerar ruído. Feedback ajuda a calibrar._
+$C_FOOTER
 EOF
 )"
 

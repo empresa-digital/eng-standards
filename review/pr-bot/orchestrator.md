@@ -12,6 +12,9 @@ and skeptical; a false "safe" is worse than a false "needs human".
 - The PR title and body are in: `$META_FILE`
 - The rule library root is: `$ENG_DIR`
 - The active org profile for this repo is: `$ORG_PROFILE` (relative to `$ENG_DIR/orgs/`).
+- Write the human-facing review prose in this language: **`$PR_REVIEW_LANG`**. Keep the
+  rule `id`s, code, and the machine `=== VERDICT ===` block exactly as specified below
+  (those are parsed downstream and must not be translated).
 
 ## Steps
 
