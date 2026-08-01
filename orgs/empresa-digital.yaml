@@ -6,6 +6,16 @@ meta:
     behind and write a new orgs/<company>.yaml. The universal + language packs carry over.
   language: en
   stack: [go, ksql, kbuilder, kparse, kpgx, fiber, testtools, vue, quasar, cypress]
+  # Config read by the PR review bot (review/pr-bot) when reviewing this org's PRs.
+  pr_review:
+    language: pt-BR
+    comment:
+      title: "🤖 **Pré-revisão automática** — eng-standards · *experimental*"
+      details_summary: "Revisão completa"
+      safe_header: "✅ **PR considerado seguro pra merge sem revisão extra.**"
+      needs_human_header: "🔴 **Requer revisão humana antes do merge.**"
+      reasons_label: "Motivos:"
+      footer: "_Automação em fase de testes; ainda pode gerar ruído. Feedback ajuda a calibrar._"
 
 rules:
   - id: ed-canonical-test-command
