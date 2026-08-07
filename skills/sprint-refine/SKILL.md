@@ -96,9 +96,10 @@ If the harness supports it, run long work in the background and yield to keep th
 
 1. For each task in scope: spawn 3 **fresh** Evaluators (stateless), each with their lens. Each votes SP + 1-line justification. **Votes in parallel.**
 2. **Large task** (median > 3 SP): Leader breaks into subtasks → back to Phase 2 for the new ones → re-vote. **Cap: 2 break cycles per task.** If still over, mark `[NEEDS-SPLIT]` and continue.
-3. **Divergence** (range > 2 SP, or a vote > 2× median): outlier explains, others counter, Leader judges:
-   - Outlier wrong → ignore or adjust.
-   - Outlier right → Leader edits the task to surface the point (break if needed) → re-vote.
+3. **Divergence** (range > 2 SP, or a vote > 2× median): outlier explains, others counter, Leader judges. Distant votes are usually just misunderstandings — resolving the misunderstanding almost always refines the ticket further, so the outcome is an edit, not just a number:
+   - High voter right → there was a missing detail; Leader edits the task to surface it (break if needed) → re-vote.
+   - Low voter right → the high vote was a misunderstanding; Leader specifies the ambiguous part in the task so the next reader doesn't trip on it → re-vote.
+   - Both have good points → ask the HIGH voter how they would split the task into subtasks (they see the hidden complexity); Leader breaks accordingly to reduce vote entropy → re-vote the pieces.
 4. Final SP = median of valid votes.
 
 ### SP anchors (1 SP = 1 day)
