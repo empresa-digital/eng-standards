@@ -51,8 +51,8 @@ The agent will start the process and provide a few different outputs:
 1. Right at the start it will ask you questions about the sprint if it cannot answer by itself
 2. It will refine the sprint file **in place**, using git for history: a checkpoint commit
    of your hand-written state before it starts, and a result commit when it finishes — so
-   `git diff` between the two shows exactly what the refinement changed, with no `-draft`/`-refined`
-   file copies cluttering the directory. The sprint file must live in a git repository.
+   `git diff` between the two shows exactly what the refinement changed. The sprint file
+   must live in a git repository.
 
 The refined sprint will be formatted as Markdown with the following sections:
 

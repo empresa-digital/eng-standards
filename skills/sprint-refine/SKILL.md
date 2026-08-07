@@ -13,7 +13,7 @@ When invoked as `sprint-refine <sprint-file> [instruction]`. No instruction = th
 
 **`## Backlog` is out of scope by default** — the skill does NOT refine, estimate, or reorder backlog items. It only touches them if the user explicitly asks. A task moves between sections (Tasks ↔ Stretch ↔ Backlog) only on user request (typically a `FIX:` directive), never on the skill's own initiative.
 
-Edits the sprint file **in place** and uses **git** as the history mechanism (no `-draft`/`-refined` copies): one checkpoint commit before refinement starts (documenting the human-authored state) and one commit after it finishes (documenting the skill's changes). Commits touch ONLY the sprint file — never other files in the tree. Does NOT push and does NOT open GitHub issues; the requester reviews the final diff (`git diff HEAD~1 -- <sprint-file>`) and reverts/amends if needed.
+Edits the sprint file **in place** and uses **git** as the history mechanism: one checkpoint commit before refinement starts (documenting the human-authored state) and one commit after it finishes (documenting the skill's changes). Commits touch ONLY the sprint file — never other files in the tree. Does NOT push and does NOT open GitHub issues; the requester reviews the final diff (`git diff HEAD~1 -- <sprint-file>`) and reverts/amends if needed.
 
 ## Roles
 
@@ -32,7 +32,6 @@ Expensive models enter the subagent flow only as the Clarity-Editor (`opus`), sc
 
 - The sprint file itself — edited in place; history lives in git (checkpoint commit before, result commit after).
 - `static-pack.md` — digest of README + CLAUDE.md/AGENTS.md of the **target repo** (not the directory where the sprint lives). Does NOT include the sprint itself. Lives in the temp dir `${TMPDIR:-/tmp}/sprint-refine-<target-repo-name>/` (or the OS equivalent), NOT next to the sprint: it is fully regenerable, so it must not pollute the sprint directory or its git history. The deterministic path keeps cross-run reuse working.
-- Questions are NOT written to a `questions.md` file. The Manager accumulates them in session memory, sends them to the user in the batch message, and unresolved ones land in the sprint's `## Open Questions` section — which already made a separate file redundant.
 
 The target repo is different from the sprint directory. Before Phase 0, ask the user OR infer from the directory name/sprint content which repo(s) to target. When ambiguous, ask in a batch alongside Phase 1.
 
@@ -56,7 +55,6 @@ If the harness supports it, run long work in the background and yield to keep th
    - The sprint file must live in a git repository. If it doesn't, STOP and ask the user (offer `git init` or a different location) — do not silently fall back to file copies.
    - If the sprint file has uncommitted changes (or is untracked), commit it — ONLY it (`git add <sprint-file>` — never `-A`; any other dirty files belong to someone else) — with a message like `sprint-refine: checkpoint — human edits before refinement`. If the file is clean, its state is already recorded; no checkpoint commit needed.
    - Record the checkpoint SHA; the pre-refinement version is always recoverable via `git show <sha>:<path>`.
-   - Legacy inputs: if the file still carries a `-draft`/`-refined` suffix from the old copy-based flow, just refine it in place — never create new suffixed copies.
 
 2. **Resolve target repo.** Ask the user if ambiguous. Multiple repos (e.g., back + front) → one pack per repo (`static-pack-<name>.md`).
 
@@ -73,7 +71,7 @@ If the harness supports it, run long work in the background and yield to keep th
    - Leader: questions that block refinement.
    - Verifier: checks every factual claim in the sprint — local/codebase claims against real code, and external/third-party claims against official docs via web search — plus a proactive reuse scan on UI tasks (flag existing components/logic a task would otherwise duplicate). Returns its findings list. (The Verifier reads code; the reuse-finding is later fed to the Leader, and only as a short finding to the UX-Critic if relevant — the UX-Critic never reads backend files itself.)
    - Evaluators: flag anything that would block estimating a task (missing info they'd need to vote). They do NOT vote here — SP voting is Phase 3, one task at a time.
-2. Manager consolidates questions in session memory, grouped by task (no `questions.md` file). Manager folds Verifier corrections into the question batch: confirmed facts are noted; wrong/missing claims become questions if they need user input, or are queued as Leader edits if the fix is unambiguous.
+2. Manager consolidates questions in session memory, grouped by task. Manager folds Verifier corrections into the question batch: confirmed facts are noted; wrong/missing claims become questions if they need user input, or are queued as Leader edits if the fix is unambiguous.
 3. **Phase 1.5 — Persona triage (before anything reaches the user).** Manager spawns 3 Personas (fresh, in parallel) and gives each the full question batch + static pack:
    - Persona selection: reuse personas documented in the target repo's CLAUDE.md/AGENTS.md when they fit the sprint's domain; otherwise create appropriate ones (product owner matching the product's real users, technical operator for infra, etc.). Mixed sprints may split the batch — each question goes to the 3 personas most qualified to answer it.
    - Each persona answers each question with a stance + confidence (`high`/`low`) + 1-line rationale.
@@ -118,8 +116,8 @@ Estimates are an internal planning tool (to decide what to break down); they do 
 
 1. **SP stats block.** Manager generates the Story-Point stats block at the BOTTOM of the sprint once here (total + optional per-section breakdown) — not maintained by the Leader/Reviewer every editing round.
 2. **Confidence-driven extra round (in-run, actionable — not a report for the user).** Before handing off, the Manager reviews where the cluster had low confidence (tasks with unresolved Verifier `unknown`s, wide SP divergence, Clarity-Editor rewrites that didn't fully land, UX calls left open). If low-confidence areas remain and the round cap + cost budget allow, run one more targeted Phase-2/3 round on just those tasks instead of shipping them shaky.
-3. **Result commit.** Commit the refined sprint file — ONLY it — with a message summarizing what the run did (e.g. `sprint-refine: broke task X into 3, resolved N questions, +SP stats`). Report both SHAs (checkpoint + result) in the final message so the user can review with `git diff <checkpoint>..<result> -- <sprint-file>`.
-4. **Skill meta-notes → eng-standards feedback loop.** Generate a short notes file capturing how the *skill* performed — harness friction, rules that didn't fire, recurring FIX-type patterns, jargon/context-leak that slipped through. This is about improving the skill, NOT a summary of the sprint for the user to read (the user reviews the sprint diff directly). Then:
+3. **Result commit.** Commit the refined sprint file — ONLY it — with a message summarizing what the run did (e.g. `sprint-refine: broke task X into 3, resolved N questions, +SP stats`). Report both SHAs (checkpoint + result) in the final message so the user can review with `git show <result-sha>`.
+4. **Skill meta-notes → eng-standards feedback loop.** Draft short meta-notes (kept in session memory — no file on disk) capturing how the *skill* performed — harness friction, rules that didn't fire, recurring FIX-type patterns, jargon/context-leak that slipped through. This is about improving the skill, NOT a summary of the sprint for the user to read (the user reviews the sprint diff directly). Then:
    - **Scrub all client/business content** — no client names, screen names, file paths, business logic, or confidential data. Post only the generic pattern (e.g. "Leader carried conversation-only context into N tickets" → candidate rule), never the specifics of this sprint.
    - Append it as a comment on the eng-standards `improvements` issue (`gh issue list --label improvements --state open --limit 1` in the eng-standards repo), tagged `[sprint-refine]` so the distill bot routes it to its skill-feedback track (proposes edits to the skill's own files, not the rule packs).
 
