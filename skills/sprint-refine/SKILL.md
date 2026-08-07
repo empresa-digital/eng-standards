@@ -24,6 +24,7 @@ Edits the sprint file **in place** and uses **git** as the history mechanism (no
 - **UX-Critic** (subagent, `sonnet`): challenges the user-facing flow the draft proposes (e.g. block input inline vs. open a dialog) and offers a better path. Spawned in Phase 2 **only when the sprint/scope touches UI or a user-facing flow**. Does NOT vote SP or check form.
 - **Verifier** (subagent, `sonnet`): stateless code + facts auditor. Spawned in Phase 1 (and re-spawned when the Leader adds tasks that reference code). Checks every factual claim the sprint makes: local/codebase claims against real code, and external/third-party claims (API limits, library API surface, service contracts) against official documentation via `web_search`/`web_fetch`. Also runs a proactive **reuse scan** on UI tasks (existing components/logic the task would duplicate). Returns a findings list only — no opinions on scope/SP/architecture. `unknown` external claims become Open Questions in the sprint. Discarded after returning findings to keep the long-lived Leader's context lean. Requires web tools (`web_search`, `web_fetch`) available in its spawn.
 - **Evaluators ×3** (subagents, `haiku`): vote SP per task. **Stateless: fresh instance each round** (anti-anchoring). Distinct lenses: backend/correctness, infra/operations, risk/edge-cases.
+- **Personas ×3** (subagents, `sonnet`, fresh per run): stakeholder simulators that triage Phase-1 questions before they reach the user (see Phase 1.5). Each impersonates a concrete stakeholder matched to the sprint's domain — e.g. a product owner (for a legal-tech sprint, a lawyer-user), a hands-on operator for infra work. Prefer personas already documented in the target repo's CLAUDE.md/AGENTS.md; invent domain-appropriate ones when the documented set doesn't fit (an infra question is not for a lawyer). Role prompt: `references/persona.md`.
 
 Expensive models enter the subagent flow only as the Clarity-Editor (`opus`), scoped to the round's diff. Every other role stays on cheap models.
 
@@ -73,8 +74,14 @@ If the harness supports it, run long work in the background and yield to keep th
    - Verifier: checks every factual claim in the sprint — local/codebase claims against real code, and external/third-party claims against official docs via web search — plus a proactive reuse scan on UI tasks (flag existing components/logic a task would otherwise duplicate). Returns its findings list. (The Verifier reads code; the reuse-finding is later fed to the Leader, and only as a short finding to the UX-Critic if relevant — the UX-Critic never reads backend files itself.)
    - Evaluators: flag anything that would block estimating a task (missing info they'd need to vote). They do NOT vote here — SP voting is Phase 3, one task at a time.
 2. Manager consolidates questions in session memory, grouped by task (no `questions.md` file). Manager folds Verifier corrections into the question batch: confirmed facts are noted; wrong/missing claims become questions if they need user input, or are queued as Leader edits if the fix is unambiguous.
-3. Manager sends ONE message to the user with all questions. User replies in bulk.
-4. Manager relays answers; new round only on affected tasks (does not restart everything).
+3. **Phase 1.5 — Persona triage (before anything reaches the user).** Manager spawns 3 Personas (fresh, in parallel) and gives each the full question batch + static pack:
+   - Persona selection: reuse personas documented in the target repo's CLAUDE.md/AGENTS.md when they fit the sprint's domain; otherwise create appropriate ones (product owner matching the product's real users, technical operator for infra, etc.). Mixed sprints may split the batch — each question goes to the 3 personas most qualified to answer it.
+   - Each persona answers each question with a stance + confidence (`high`/`low`) + 1-line rationale.
+   - **Auto-resolve rule:** if ≥2 personas converge on materially the same answer with `high` confidence, adopt that answer — the question does NOT go to the user. The Leader applies it like a user answer.
+   - **Never auto-resolve** questions whose answer depends on facts only the user can know: business priorities/sequencing, commitments to clients or partners, budget, credentials/access, and anything a persona could only guess at. Personas simulate judgment, not knowledge — a confident persona consensus on a knowledge question is still a guess.
+   - Every auto-resolved question is logged in the sprint under `## Open Questions` in a `### Answered by persona panel — override if wrong` subsection (question, adopted answer, which personas converged), and summarized in the final message, so the user can veto asynchronously (a veto is just a `FIX:` on the next run).
+4. Manager sends ONE message to the user with the remaining questions. User replies in bulk.
+5. Manager relays answers; new round only on affected tasks (does not restart everything).
 
 **FIX: annotations.** The input sprint may contain inline annotations prefixed `FIX:` (as well as ordinary inline comments). Every `FIX:` is an AUTHORITATIVE directive from the user. During Phase 1:
 - Route any `FIX:` that makes a claim about the codebase to the Verifier.
@@ -146,7 +153,7 @@ If the Phase-1 estimate already signals a >$5 run, pause before starting Phase 2
 
 ## Role prompts
 
-See `references/leader.md`, `references/reviewer.md`, `references/clarity-editor.md`, `references/ux-critic.md`, `references/verifier.md`, `references/evaluator-backend.md`, `references/evaluator-infra.md`, `references/evaluator-risk.md`. Each spawn loads its prompt as system/objective.
+See `references/leader.md`, `references/persona.md`, `references/reviewer.md`, `references/clarity-editor.md`, `references/ux-critic.md`, `references/verifier.md`, `references/evaluator-backend.md`, `references/evaluator-infra.md`, `references/evaluator-risk.md`. Each spawn loads its prompt as system/objective.
 
 ## Recorded decisions
 
@@ -159,4 +166,5 @@ See `references/leader.md`, `references/reviewer.md`, `references/clarity-editor
 - Verifier always a fresh spawn (stateless) + proactive UI reuse scan.
 - Clarity-Editor = the only strong-model (Opus) role; fresh every round, scoped to the round's diff, adversarial cold-reader test (avoids the complacency of an end-only polish pass).
 - UX-Critic runs only when UI/user-facing flow is in scope.
+- Persona panel (3 fresh `sonnet` stakeholder simulators) triages Phase-1 questions: ≥2 high-confidence converging answers auto-resolve judgment questions; knowledge questions (priorities, commitments, budget, credentials) always go to the user; auto-resolutions are logged in the sprint for async veto.
 - Every run closes out with a confidence-driven extra round (if needed) + scrubbed skill meta-notes to the eng-standards `improvements` issue, tagged `[sprint-refine]`.
