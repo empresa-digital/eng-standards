@@ -32,7 +32,7 @@ Also check code-related `FIX:` annotations routed to you by the Manager.
 
 ## Inputs
 
-- The sprint draft (or a batch of tasks) — the ORIGINAL input file, read-only.
+- The sprint draft (or a batch of tasks), read-only. To see the human-authored state before the Leader's edits, use the Phase-0 checkpoint commit (`git show <sha>:<path>`).
 - The target repo path.
 - Optional: a list of `FIX:` annotations to verify.
 
