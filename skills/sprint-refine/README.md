@@ -49,9 +49,12 @@ You can ask your agent to start it, or you can start it manually by first creati
 The agent will start the process and provide a few different outputs:
 
 1. Right at the start it will ask you questions about the sprint if it cannot answer by itself
-2. It will produce a refined version of the sprint as a separate file with a `-refined.md` suffix
+2. It will refine the sprint file **in place**, using git for history: a checkpoint commit
+   of your hand-written state before it starts, and a result commit when it finishes — so
+   `git diff` between the two shows exactly what the refinement changed. The sprint file
+   must live in a git repository.
 
-The output sprint will be formatted as Markdown with the following sections:
+The refined sprint will be formatted as Markdown with the following sections:
 
 1. Goals
 2. Tasks
@@ -68,9 +71,10 @@ the sprint.
 You might also want to include `FIX:` instructions anywhere in the sprint body asking a task to be
 moved up or down the priority list, or moved to the Stretch or Backlog section.
 
-You may then call the same skill again passing the path of the refined and reviewed sprint file,
-it will read all the answers to the open questions and all the `FIX` comments and act on them
-updating tasks accordingly following the same vote and breakdown and refinement process.
+You may then call the same skill again passing the same sprint file (your review edits get their
+own checkpoint commit); it will read all the answers to the open questions and all the `FIX`
+comments and act on them updating tasks accordingly following the same vote and breakdown and
+refinement process.
 
 When you are satisfied you should be able to publish the sprint.
 
