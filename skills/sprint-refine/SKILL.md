@@ -35,7 +35,7 @@ Expensive models enter the subagent flow only as the Clarity-Editor (`opus`), sc
 
 The target repo is different from the sprint directory. Before Phase 0, ask the user OR infer from the directory name/sprint content which repo(s) to target. When ambiguous, ask in a batch alongside Phase 1.
 
-Agents receive: static pack + relevant sprint excerpt. Evaluators: the task being voted on + its direct dependencies + the enclosing section/subsection titles (the surrounding context a task inherits from its place in the hierarchy — so a ticket doesn't have to repeat it). Leader/Reviewer: the current sprint file read from disk.
+Agents receive: static pack + relevant sprint excerpt. Evaluators: the task being voted on + its direct dependencies + the enclosing section/subsection titles (the surrounding context a task inherits from its place in the hierarchy — so a ticket doesn't have to repeat it). This excerpt is embedded **verbatim in the evaluator's spawn prompt** — do NOT hand an evaluator the sprint file path with a "read only section N" instruction; scoped-by-pointer leaks (the evaluator reads the whole file and votes out-of-scope tasks). Leader/Reviewer: the current sprint file read from disk.
 
 ## Subagent invocation
 
