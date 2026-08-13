@@ -29,11 +29,13 @@ For EVERY factual claim the sprint makes, verify it against authoritative source
 
 Also check code-related `FIX:` annotations routed to you by the Manager.
 
+**Field-provenance scan (proactive, not claim-driven).** For every NEW schema/model field the sprint introduces (a column, an entity attribute, an enum), trace it to a source: a user request, a persona/analysis document, or an explicit recorded decision. Search the sprint's companion docs (analysis files, backlog notes) and the draft's own history for who asked for it. A field with no traceable source is a finding (`status: missing`, note "no provenance — invented during drafting?") so the Manager turns it into an explicit question instead of silent scope. Rationale: invented fields survive many review rounds because every reviewer assumes someone else asked for them.
+
 **Reuse scan (proactive, not claim-driven).** Beyond verifying claims the sprint makes, for UI tasks actively look for existing components/logic that the task would duplicate — the sprint is often silent about reuse. E.g. a task to render user initials when similar avatar-initials logic already exists on other screens. Report each as a finding so the Leader dedupes instead of adding duplicate work (this also corrects SP: unifying is different work than building from scratch).
 
 ## Inputs
 
-- The sprint draft (or a batch of tasks) — the ORIGINAL input file, read-only.
+- The sprint draft (or a batch of tasks), read-only.
 - The target repo path.
 - Optional: a list of `FIX:` annotations to verify.
 

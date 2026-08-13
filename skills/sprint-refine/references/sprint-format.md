@@ -79,6 +79,19 @@ The fixed H2 sections are **Goals / Tasks / Stretch / Backlog / Open Questions**
 
 Each task's first line states the concrete *what* in plain terms — the change, the file/screen, the behavior — leaning on the surrounding section/subsection context rather than repeating it. Keep internal jargon and implementation details (method/field names, etc.) out of the first line unless they add clarity; put them as a sub-item if the dev needs them. Sentences that only make sense with the conversation that produced the draft (dropped decisions, "for later" asides) do not belong in the sprint at all.
 
+## Actions, not artifacts
+
+Task titles and sub-items describe ACTIONS to perform (or how the line connects to the rest of the task) — never a bare artifact/noun label. A noun list looks formal but transports less understanding of what must be done and how the pieces connect. Artifact-style labels are acceptable only occasionally as grouping headers for sub-items.
+
+- Bad: "Rota admin-only de emissão" → Good: "Implementar rota admin-only de emissão"
+- Bad: "Lista de versões por relatório" → Good: "Adicionar lista de versões e ações por relatório na tela da diligência"
+- Bad: "Dependência pdfcpu: adicionar ..." → Good: "Para carimbar o PDF na rota de emissão, adicionar a dependência pdfcpu ..."
+- Bad: "Auto-finalização: ao montar a tela ..." → Good: "Ao carregar a tela da diligência, iniciar a finalização de versões em `markdown_ready` ..."
+
+## No planning-process leakage
+
+Internal planning references (rule ids like `fe-027`, reviewer names, round numbers, vote spreads) do not belong in task text — the reader will not use them. State the resulting requirement plainly instead.
+
 ## Section granularity
 
 A section whose title is ~the same as the first line of its single item is too small. Group such items into a broader section (e.g. "Bugs", "Tech Debt", "New Feature …") instead of one section per item.

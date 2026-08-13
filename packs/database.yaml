@@ -84,3 +84,29 @@ rules:
     reason: >
       A composite PK only indexes its leading column efficiently. A non-leading column
       that was previously its own PK silently loses index support and slows its queries.
+
+  - id: db-migration-timestamp-real-clock
+    topic: Migrations
+    severity: blocker
+    lintable: true
+    sources: [db-007]
+    principle: >
+      Migration filenames use the real current timestamp — YYYYMMDDHHMMSS down to the
+      second — taken from the clock at creation time. Never fabricate the time part
+      (e.g. a zeroed or sequential suffix like 000001). Generate it with:
+      date +%Y%m%d%H%M%S
+    wrong:
+      description: Hand-written version with a fabricated time part.
+      code: |
+        migrations/20260809000001_add_document_flags.sql
+        migrations/20260809000002_add_flag_index.sql
+    right:
+      description: Version taken from the clock when the file is created.
+      code: |
+        # touch migrations/$(date +%Y%m%d%H%M%S)_add_document_flags.sql
+        migrations/20260809143512_add_document_flags.sql
+    reason: >
+      Fabricated time parts collide as soon as two migrations are created on the same
+      day — by parallel branches, teammates, or AI agents all picking 000001 — breaking
+      version uniqueness and apply order. The real clock is free to read and makes
+      versions unique and monotonic.
