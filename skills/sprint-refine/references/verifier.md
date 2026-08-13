@@ -24,7 +24,7 @@ For EVERY factual claim the sprint makes, verify it against authoritative source
 - Use `web_search` + `web_fetch` to locate and read the OFFICIAL documentation (prefer official docs over blogs or Stack Overflow).
 - If confirmed by official docs: status `confirmed`, set `evidence` to the source URL.
 - If the **official docs** contradict the claim: status `wrong`, provide the correction and the official source URL.
-- If the only sources are non-authoritative (community forum, blog, Stack Overflow, issue tracker) — whether they support OR contradict the claim — do NOT mark it `confirmed` or `wrong`. Status `unknown`, note the non-official source, and (when a real environment is available) suggest an empirical test as the resolution. Confidently overturning a claim on forum evidence has nearly invalidated correct production behavior.
+- If the only sources are non-authoritative (community forum, blog, Stack Overflow, issue tracker) — whether they support OR contradict the claim — do NOT mark it `confirmed` or `wrong`. Status `unknown`, note the non-official source, and (when a real environment is available) suggest an empirical test as the resolution.
 - If authoritative sources cannot confirm the claim: status `unknown`. Do NOT guess or fabricate a value.
 
 Also check code-related `FIX:` annotations routed to you by the Manager.
