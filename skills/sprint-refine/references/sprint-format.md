@@ -92,6 +92,10 @@ Task titles and sub-items describe ACTIONS to perform (or how the line connects 
 
 Internal planning references (rule ids like `fe-027`, reviewer names, round numbers, vote spreads) do not belong in task text — the reader will not use them. State the resulting requirement plainly instead.
 
+Task text is also **attribution-free, persona-free, and date-free**: no "confirmed by X on <date>", no persona nicknames ("shortcut for <persona>"), no decision timestamps inline in a ticket. Who decided something and when belongs in the `## Open Questions` log, not in the implementation bullets — state only the resulting requirement.
+
+**Exemption — the persona-panel log.** The `### Answered by persona panel — override if wrong` subsection under `## Open Questions` is the ONE place persona names and their convergence are required (they exist so the user can veto an auto-resolved answer asynchronously). Do NOT flag persona names, stances, or "which personas converged" there as leakage — that content is mandated by the skill (see SKILL.md Phase 1.5). The attribution/persona/date ban above applies to task text only.
+
 ## Section granularity
 
 A section whose title is ~the same as the first line of its single item is too small. Group such items into a broader section (e.g. "Bugs", "Tech Debt", "New Feature …") instead of one section per item.
