@@ -102,7 +102,9 @@ rules:
     principle: >
       List repository functions use `kbuilder.Query` and accept pagination
       (offset/limit) plus conditional filters via WhereIf — unless a bounded-size
-      invariant is proven.
+      invariant is proven. Return the full result set by default and expose any
+      business subset (e.g. only-latest-version, only-active) as an optional WhereIf
+      filter rather than hardcoding it into the query.
     wrong:
       code: |
         query := "SELECT * FROM documents WHERE firm_id = $1"
