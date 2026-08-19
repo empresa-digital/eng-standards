@@ -1,0 +1,171 @@
+meta:
+  pack: llm-docs
+  description: >
+    Rules for documents whose primary reader is an AI/LLM at runtime — agent
+    instruction files, protocol/playbook docs, architecture docs consumed by
+    agents. Treat these .md files as code executed by an LLM: the same hygiene
+    that applies to source code (no paraphrasing comments, no design-process
+    narration, single source of truth) applies here, plus concerns unique to
+    LLM readers (context budget, self-containedness, model-tier clarity).
+  language: en
+
+rules:
+  - id: llmdoc-self-contained
+    topic: Clarity
+    severity: blocker
+    lintable: false
+    sources: ["sylphie-cognitive-repo"]
+    principle: >
+      A doc must be fully interpretable with only the context its real reader
+      loads alongside it. No references to planning conversations, chat
+      decisions, or knowledge that lived in the author's head during writing.
+      Review check: initialize a reviewer LLM with exactly the reader's load
+      set (this doc + whatever the runtime injects with it) and have it flag
+      every passage it cannot resolve.
+    wrong:
+      description: Instruction leaning on a conversation the reader never saw.
+      code: |
+        Handle group messages the way we agreed last Tuesday (see chat).
+        The usual sentinel applies.
+    right:
+      description: The agreement is inlined; the sentinel is named.
+      code: |
+        Group message that does not mention the agent: emit the channel's
+        silence sentinel (telegram: NO_REPLY) and do not load the core.
+    reason: >
+      The runtime reader has no access to the planning conversation. Every
+      unresolved reference becomes a guess at execution time, and weaker
+      models guess worse — unclear docs silently raise the minimum model tier.
+
+  - id: llmdoc-no-design-provenance
+    topic: Clarity
+    severity: blocker
+    lintable: false
+    sources: ["sylphie-cognitive-repo"]
+    principle: >
+      Operational docs state the current instruction only. Who decided it,
+      when, what draft it replaced, and why the alternative lost belong in a
+      plan/changelog doc or the VCS history — not inline with the instruction.
+      Mirror of the code rule against comments narrating how the diff came to be.
+    wrong:
+      description: Instruction wrapped in decision archaeology.
+      code: |
+        ## Protocols (definition sharpened by V., 2026-08-19)
+        (The old P02/P03 from draft v0 were reclassified and moved...)
+        A protocol is a specific case with a simple, closed response.
+    right:
+      description: Clean instruction; provenance lives in the plan file.
+      code: |
+        ## Protocols
+        A protocol is a specific case with a simple, closed response.
+    reason: >
+      Provenance is noise to the runtime reader: it spends context tokens,
+      dilutes the instruction, and goes stale. Git blame and plan docs already
+      record it losslessly.
+
+  - id: llmdoc-single-source
+    topic: Structure
+    severity: blocker
+    lintable: false
+    sources: ["sylphie-cognitive-repo"]
+    principle: >
+      Each instruction or fact lives in exactly one doc; other docs link to it
+      rather than restating it. When restating is unavoidable (e.g. a summary
+      in an always-loaded file), mark which copy is authoritative.
+    wrong:
+      description: The same escalation rule maintained in three files.
+      code: |
+        AGENTS.md:      "when unsure, escalate to core"
+        protocols.md:   "in doubt, wake the core (and log it)"
+        adapter.md:     "uncertain -> core, no log needed"
+    right:
+      description: One authoritative statement, referenced elsewhere.
+      code: |
+        protocols.md:  "Imperfect match or unknown activity -> escalate to
+                        core and record a digest line. When in doubt: core."
+        adapter.md:    "Escalation rule: see protocols.md."
+    reason: >
+      Duplicated instructions drift independently, and an LLM reading two
+      conflicting copies picks one silently. A single source turns drift into
+      a broken link instead of a wrong behavior.
+
+  - id: llmdoc-context-budget
+    topic: Structure
+    severity: nit
+    lintable: false
+    sources: ["sylphie-cognitive-repo"]
+    principle: >
+      Docs injected on every run stay lean; detail needed only sometimes moves
+      to on-demand files the agent opens when the case arises. Context tokens
+      are runtime cost and attention dilution — budget them like memory in an
+      embedded system.
+    wrong:
+      description: Always-loaded file carrying a rarely-needed appendix.
+      code: |
+        AGENTS.md (injected every session):
+          ...core workflow (20 lines)...
+          ## Appendix: full OAuth re-auth walkthrough (150 lines, needed ~monthly)
+    right:
+      description: Lean always-loaded file, detail moved behind a pointer.
+      code: |
+        AGENTS.md: "OAuth broke? Follow docs/oauth-reauth.md."
+        docs/oauth-reauth.md: full walkthrough.
+    reason: >
+      Every always-loaded line competes with the task for attention on every
+      single run, and costs tokens even when irrelevant. On-demand detail is
+      free until the one run that needs it.
+
+  - id: llmdoc-closed-behavior
+    topic: Reliability
+    severity: blocker
+    lintable: false
+    sources: ["sylphie-cognitive-repo"]
+    principle: >
+      When a doc delegates a behavior to an LLM (especially a cheaper model),
+      it specifies a closed list of permitted actions and an explicit
+      escalation branch for everything else. Open-ended instructions invite
+      improvisation exactly where delegation assumed none.
+    wrong:
+      description: Open-ended delegation with no else-branch.
+      code: |
+        If the message looks routine, handle it appropriately.
+    right:
+      description: Closed action list plus explicit escalation.
+      code: |
+        Trigger: last reply was truncated and user wrote "resend".
+        Permitted action: resend the exact same final text, once.
+        Anything else (content must change, second failure): escalate to core.
+    reason: >
+      The whole point of delegating to a smaller model is a bounded decision.
+      Without a closed action set and an else-branch, the doc's ambiguity is
+      resolved by the weakest reader at the worst time.
+
+  - id: llmdoc-executable-by-test
+    topic: Testing
+    severity: nit
+    lintable: false
+    sources: ["sylphie-cognitive-repo"]
+    principle: >
+      Behavior docs should be exercised by integration tests: build the exact
+      context the runtime reader would load, feed a realistic input, and
+      assert the produced behavior. Run the test on the weakest model tier
+      expected to execute the doc — passing on a weak model is the measurable
+      definition of "clear enough"; needing a stronger model is a finding to
+      record on the scenario.
+    wrong:
+      description: Instruction doc validated only by human proofreading.
+      code: |
+        protocols.md reviewed by its author; first real execution is in
+        production, by a cheaper model than the author used to write it.
+    right:
+      description: Scenario test pinning the doc's behavior on the target tier.
+      code: |
+        tests/scenarios/resend-truncated/
+          build-prompt.sh   # loads exactly what the runtime reader loads
+          input.md          # realistic inbound message
+          check.sh          # asserts exact resend, no improvisation
+          model             # weakest tier that must pass (e.g. haiku)
+    reason: >
+      Docs read fine to their author and still fail on a weaker reader. A
+      scenario test converts "clear enough" from an opinion into a
+      reproducible check, and catches regressions when the doc is edited.

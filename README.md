@@ -19,6 +19,7 @@ packs/                  # bind to a language/paradigm — travel to any Go/Vue s
   infra.yaml            # (slice 2)
   git.yaml              # (slice 2)
   pull_requests.yaml    # PR description / title / scope conventions
+  llm-docs.yaml         # docs whose primary reader is an AI/LLM at runtime
   testing.yaml          # (slice 2)
   planning.yaml         # (slice 2)
 orgs/                   # bind to a tool OR a house convention — do NOT travel
