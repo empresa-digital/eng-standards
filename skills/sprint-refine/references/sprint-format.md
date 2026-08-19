@@ -75,6 +75,18 @@ The fixed H2 sections are **Goals / Tasks / Stretch / Backlog / Open Questions**
 
 `## Backlog` is **out of scope by default**: only `## Tasks` and `## Stretch` get refined and estimated. Leave backlog items untouched unless the user explicitly asks; tasks change section only on user request, never on the skill's initiative.
 
+## Sub-item granularity
+
+Sub-items exist to make a task scannable — never to hide its size or save lines.
+
+- **One element per sub-item.** When a task enumerates elements (entity fields, migration steps, routes), each element gets its own sub-item. Never pack two elements on one line (`` `a string`, `b string` ``) — mixed sub-items only make reading harder.
+- **Inline lists don't scale.** A first line (or sub-item) that enumerates more than 3 elements, or any element with a long description, must be broken into sub-items — even when only 2 elements, if their descriptions are long.
+- **Long tasks get sub-checkboxes.** When a task accumulates many sub-items (roughly: doesn't fit on one screen), promote its major sub-items to `- [ ]` tracked sub-steps (no SP tag), or split it into sibling subtasks under an unestimated context line. A wall of unchecked prose is not an acceptable shape for a 3 SP task.
+
+## Stack-context markers
+
+When consecutive tasks in the same section switch stack (backend → frontend, app → infra), make the switch visible: prefix the task title (`Frontend — …`, `Backend — …`) or insert a bold separator line (`**Frontend:**`) before the group. A reader scanning task titles must never discover the stack switch only from the sub-items.
+
 ## Task first line
 
 Each task's first line states the concrete *what* in plain terms — the change, the file/screen, the behavior — leaning on the surrounding section/subsection context rather than repeating it. Keep internal jargon and implementation details (method/field names, etc.) out of the first line unless they add clarity; put them as a sub-item if the dev needs them. Sentences that only make sense with the conversation that produced the draft (dropped decisions, "for later" asides) do not belong in the sprint at all.
