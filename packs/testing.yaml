@@ -373,11 +373,12 @@ rules:
     lintable: false
     sources: [fe-022]
     principle: >
-      Inline a literal at its single call site instead of extracting it to a
-      module-level constant. A reader scanning the test should see WHICH route, payload,
-      or value is exercised — not a "${NAME}" they must scroll up to resolve. Extract
-      only when the value is reused across tests or genuinely needs a name to be
-      understood.
+      Declare each test-case's data inline, at the test-case itself — never hoist it
+      into a module-level constant, a shared helper function, or a fixed fixture reused
+      by other test-cases or files. A reader scanning the test must see WHICH route,
+      payload, or value is exercised — not a "${NAME}" they scroll up (or open another
+      file) to resolve. Fill boilerplate with a per-entity faker constructor called
+      inline (see test-per-case-fixtures-via-fakers), never by sharing one fixed instance.
     wrong:
       description: >
         Single-use literals hoisted to top-of-file constants; the assertion reads
@@ -405,9 +406,59 @@ rules:
         })
     reason: >
       A "${ROUTE}" / "${RAW_BODY}" indirection forces the reader to jump to the top of
-      the file to learn which endpoint and payload the test exercises; the literal at
-      the call site states it directly. This complements test-inline-fixtures (pull data
-      out of external files) by resisting the opposite over-correction — extracting
-      single-use, self-evident literals into named constants that read worse than the
-      value itself. Promote to a constant only on reuse or when a name adds real meaning
-      (see test-descriptive-fixture-names).
+      the file — or worse, to another file — to learn which endpoint and payload the test
+      exercises; the literal at the call site states it directly. This complements
+      test-inline-fixtures (pull data out of external files): keep test data DAMP, not
+      DRY. Sharing one fixed fixture across cases couples them, hides what each case
+      actually exercises, and discourages new tests that would need a differently-shaped
+      fixture — quietly eroding coverage over time. The only shared form allowed is a
+      faker constructor with per-case overrides (test-per-case-fixtures-via-fakers).
+
+  - id: test-per-case-fixtures-via-fakers
+    topic: Readability
+    severity: blocker
+    lintable: false
+    sources: [vini-style]
+    principle: >
+      Build test-case data from per-entity faker constructors called inline in each
+      test-case, overriding only the fields that case exercises. Provide one faker per
+      significant core entity/struct (FakeDiligence, FakeDiligenceItem, ...); the faker
+      fills sensible defaults and takes an overrides map for the rest. A shared helper
+      that returns one fixed instance, or a hand-rolled fixture reused across cases or
+      files, is forbidden — even one wrapped in a function.
+    wrong:
+      description: >
+        A private builder returns a fixed, fully-populated instance, reused by several
+        test-cases (and other files). Readers must open it to know what each case tests,
+        and won't touch it for fear of breaking the other callers — so they stop adding
+        cases that need a different shape.
+      code: |
+        func fullDiligence() core.Diligence {
+          return core.Diligence{
+            ID: 7, FirmID: 3, Title: "Aquisicao da Alfa",
+            Parties:  []core.DiligenceParty{{ /* ... */ }},
+            Sections: []core.DiligenceSection{{ /* ... */ }},
+            Items:    []core.DiligenceItem{ /* ... */ },
+          }
+        }
+        // used across report_draft_test.go AND report_draft_context_test.go
+    right:
+      description: >
+        Each case constructs its own diligence inline via fakers, specifying only what
+        matters to it; a case that doesn't need parties or documents simply omits them.
+      code: |
+        *core.FakeDiligence(t, 7, 3, map[string]any{
+          "Sections": []core.DiligenceSection{{Title: "Societario", ItemIDs: []int{10, 11}}},
+          "Items": []core.DiligenceItem{
+            *core.FakeDiligenceItem(t, 10, 7, core.ItemStatusAnswered, map[string]any{
+              "Comments": []core.DiligenceComment{{ID: 1, ItemID: 10, Message: "Falta anexar"}},
+            }),
+          },
+        })
+    reason: >
+      A faker keeps each case self-contained and honest about what it exercises, while
+      the defaults keep it short. A fixed shared fixture does the opposite: it couples
+      cases, forces scrolling across files, and — because editing it risks every other
+      caller — pushes new tests toward the existing shape instead of the shape they need,
+      so coverage stalls. Injecting knobs the fixture hard-codes (e.g. a size limit) as
+      constructor parameters lets a case set them small instead of building huge data.
