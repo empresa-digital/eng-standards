@@ -423,9 +423,13 @@ rules:
       Build test-case data from per-entity faker constructors called inline in each
       test-case, overriding only the fields that case exercises. Provide one faker per
       significant core entity/struct (FakeDiligence, FakeDiligenceItem, ...); the faker
-      fills sensible defaults and takes an overrides map for the rest. A shared helper
-      that returns one fixed instance, or a hand-rolled fixture reused across cases or
-      files, is forbidden — even one wrapped in a function.
+      fills sensible defaults and takes an overrides map for the rest. Two properties
+      are what make it a faker and not a fixed fixture: (1) it must let a case override
+      EVERY field of the entity — no field is off-limits; (2) it must be deterministic,
+      same inputs producing an identical value, so the same faker call can build both a
+      seed and its expected value and the two compare equal. A shared helper that returns
+      one fixed instance, or a hand-rolled fixture reused across cases or files, is
+      forbidden — even one wrapped in a function.
     wrong:
       description: >
         A private builder returns a fixed, fully-populated instance, reused by several
@@ -460,5 +464,7 @@ rules:
       the defaults keep it short. A fixed shared fixture does the opposite: it couples
       cases, forces scrolling across files, and — because editing it risks every other
       caller — pushes new tests toward the existing shape instead of the shape they need,
-      so coverage stalls. Injecting knobs the fixture hard-codes (e.g. a size limit) as
-      constructor parameters lets a case set them small instead of building huge data.
+      so coverage stalls. Determinism is what lets the same faker call stand in for both
+      the seed and the expected value, so a test never hand-maintains a second copy of
+      the data it just built. Injecting knobs the fixture hard-codes (e.g. a size limit)
+      as constructor parameters lets a case set them small instead of building huge data.
