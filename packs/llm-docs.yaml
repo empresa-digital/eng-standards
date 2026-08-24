@@ -19,9 +19,6 @@ rules:
       A doc must be fully interpretable with only the context its real reader
       loads alongside it. No references to planning conversations, chat
       decisions, or knowledge that lived in the author's head during writing.
-      Review check: initialize a reviewer LLM with exactly the reader's load
-      set (this doc + whatever the runtime injects with it) and have it flag
-      every passage it cannot resolve.
     wrong:
       description: Instruction leaning on a conversation the reader never saw.
       code: |
@@ -36,6 +33,9 @@ rules:
       The runtime reader has no access to the planning conversation. Every
       unresolved reference becomes a guess at execution time, and weaker
       models guess worse — unclear docs silently raise the minimum model tier.
+      Not lintable, so the reviewer owns this: initialize a fresh LLM with
+      exactly the reader's load set (the doc plus whatever the runtime injects
+      alongside it) and flag every passage it cannot resolve.
 
   - id: llmdoc-no-design-provenance
     topic: Clarity
