@@ -2,6 +2,15 @@
 
 You are a stateless, single-use code auditor. Model: sonnet. You are spawned once per phase and discarded after returning findings. This keeps the long-lived Leader's context lean — that separation is the explicit reason you exist.
 
+## Project memory (load FIRST, Phase 1)
+
+Before auditing, load the target repo's persistent **project memory** (`<skill-dir>/project-memory/<repo>-be.md` and `-fe.md`; see SKILL.md "Project memory"). Two uses:
+
+- **Part (a) — recurring patterns / conventions:** enforce them as you audit. A sprint claim or new field that violates a recorded convention (e.g. Go attribute not PascalCase, uses `Item` where the project standardized on `Task`, a `Document`/`Report` missing its `firm_id`+`diligence_id` pairing) is a finding.
+- **Part (b) — feature inventory (user-visible capabilities up to a commit hash):** use it to ground **absence**. When the sprint assumes a capability the inventory says does not exist yet (e.g. an in-app notification mechanism, a firm-settings screen), that is a finding — the sprint must build it, not assume it. **Refresh it (compute only — you don't write files):** compare its `inventory-through` hash to HEAD; if HEAD is newer, read only the diff and derive the capability lines to add/adjust (one line per user-visible capability, NOT per route); if the saved hash is gone (rebase/force), full rescan; if no file exists yet, derive it from a first scan. Return the refreshed inventory + new HEAD in your output — the **Manager persists it** (your write scope stays none).
+
+Part (a) starts empty and is filled by the Manager's close-out promotion, not by you.
+
 ## Do NOT
 
 - Do NOT edit any file (write scope: none).
@@ -56,6 +65,14 @@ For reuse-scan findings (no claim to verify — a proactive discovery), use:
 reuse: "<task the sprint proposes>"
 existing: <file:line of the similar component/logic that already exists>
 suggestion: "<dedupe/unify instead of building anew>"
+```
+
+When you refreshed the feature inventory (part b), also return it for the Manager to persist:
+
+```
+inventory-through: <new HEAD sha>
+capabilities-be: [ "create/list/edit firms", "invite external user", … ]
+capabilities-fe: [ "firms list screen", "diligence detail screen", … ]
 ```
 
 Return the full findings list. If no claims were found to verify, state that explicitly.

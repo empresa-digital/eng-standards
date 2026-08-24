@@ -37,6 +37,33 @@ The target repo is different from the sprint directory. Before Phase 0, ask the 
 
 Agents receive: static pack + relevant sprint excerpt. Evaluators: the task being voted on + its direct dependencies + the enclosing section/subsection titles (the surrounding context a task inherits from its place in the hierarchy — so a ticket doesn't have to repeat it). This excerpt is embedded **verbatim in the evaluator's spawn prompt** — do NOT hand an evaluator the sprint file path with a "read only section N" instruction; scoped-by-pointer leaks (the evaluator reads the whole file and votes out-of-scope tasks). Leader/Reviewer: the current sprint file read from disk.
 
+## Project memory (persistent, per target repo)
+
+Distinct from the static pack (regenerable, temp-dir): a **persistent** per-repo memory that gives the cluster head-start context so it stops re-making the same misses across sprints. Unlike the static pack, it is NEVER auto-regenerated from scratch — it accumulates.
+
+**Location — relative to the skill directory, never a machine-specific path.** This skill is public and other devs will run it, so the memory must NOT live under a user-specific path (`~/.claude/...`, `~/.openclaw/...`). It lives at `<skill-dir>/project-memory/<target-repo-name>-be.md` (backend) and `<target-repo-name>-fe.md` (frontend), where `<skill-dir>` is the directory this `SKILL.md` sits in and `<target-repo-name>` is the same repo identifier used for the static pack. One file per stack per repo; create on first use. (A repo with no split uses a single `-be.md`.)
+
+**Local-only, never committed.** The skill lives in a public repo, but this memory records a client product's capabilities and domain conventions — it must NOT be pushed there. `project-memory/` is git-ignored, so each developer's checkout builds and keeps its own copy locally; the skill never commits or pushes it. (This is why it can safely sit under the public skill dir: the path is shared, the *contents* stay local.)
+
+Each file has two parts:
+
+### (a) Recurring patterns / project conventions
+
+Reusable FIX-derived conventions the Verifier/Leader should honor before the run starts — e.g. "entities `Document`/`Report` always pair `firm_id` + `diligence_id`", "Go attribute names are PascalCase (`ID`, not `id`)", "prefer the name `Task` over `Item` in new code". This is where item-14-style domain/naming conventions live: they are **NOT** hardcoded as generic skill rules (the skill is repo-agnostic) — they enter through this per-project memory. For language idioms already covered by eng-standards packs, defer to the pack; record here only what is specific to *this* repo's domain/decisions.
+
+- **Admission criterion (do NOT save every FIX).** A FIX enters only if **(i)** the user enunciated it as a PATTERN ("other tables already use `firm_id`+`diligence_id`", "in Go we use PascalCase"), OR **(ii)** the same miss was reported ≥2× within one sprint. One-off/pointer fixes never become memory.
+- **Obsolescence needs user input — never auto-expire.** The mechanism cannot guess a convention went stale; a *new* contradicting FIX from the user supersedes the old entry. The most a run may do is stamp "last seen at commit `<hash>`" as a **staleness signal** for the user to reconfirm — never an automatic delete.
+
+### (b) Feature inventory up to a commit hash
+
+A quick-reference list of what the product *does*, so the Verifier can assert **absence** ("the frontend has no in-app notification mechanism yet", "firms have no settings screen yet") instead of assuming a feature exists.
+
+- **Granularity = user-visible capability, not route.** One line per capability a user could say the system has: "create/list/edit firms", "invite external user", "invite firm member", "approve a diligence item", "red-flag a diligence item". NOT one line per endpoint — the Verifier already finds present/missing routes well; this layer is the higher, user-facing view routes don't give.
+- **Header line 1:** `<!-- repo: <path> | inventory-through: <sha> -->`.
+- **Incremental update, before the run:** compare `inventory-through` with the repo HEAD. If HEAD is newer, read ONLY the diff and add/adjust capability lines. If the saved hash no longer exists (rebase/force-push), do a full safety rescan. Then stamp the new HEAD.
+
+The Verifier reads both parts in Phase 1 (part (a) as constraints to enforce, part (b) to ground absence claims) and **computes** the refreshed part-(b) inventory, returning it in its output; the **Manager writes** the memory files (never commits them — they stay local; the Verifier's own write scope stays none). Promotion INTO part (a) happens at close-out — see Phase 4.
+
 ## Subagent invocation
 
 Use whatever subagent mechanism the current harness provides — `sessions_spawn` on OpenClaw, the Agent tool on Claude Code. The roles, models, and stateless/reuse rules below are harness-agnostic; map them onto the available primitive.
@@ -69,7 +96,7 @@ If the harness supports it, run long work in the background and yield to keep th
 
 1. Spawn Leader + Verifier + 3 Evaluators in parallel, each reading pack + sprint scope. Their Phase-1 job is only to surface questions (non-blocking) — nobody edits or votes yet:
    - Leader: questions that block refinement.
-   - Verifier: checks every factual claim in the sprint — local/codebase claims against real code, and external/third-party claims against official docs via web search — plus a proactive reuse scan on UI tasks (flag existing components/logic a task would otherwise duplicate). Returns its findings list. (The Verifier reads code; the reuse-finding is later fed to the Leader, and only as a short finding to the UX-Critic if relevant — the UX-Critic never reads backend files itself.)
+   - Verifier: first loads the **project memory** for the target repo (see "Project memory") — computing a refreshed feature inventory (part b) against HEAD if stale and returning it for the Manager to persist — then checks every factual claim in the sprint against real code + official docs, using memory part (b) to ground **absence** claims (a feature the sprint assumes but the inventory says doesn't exist yet is a finding) and part (a) as conventions to enforce. Plus a proactive reuse scan on UI tasks (flag existing components/logic a task would otherwise duplicate). Returns its findings list. (The Verifier reads code; the reuse-finding is later fed to the Leader, and only as a short finding to the UX-Critic if relevant — the UX-Critic never reads backend files itself.)
    - Evaluators: flag anything that would block estimating a task (missing info they'd need to vote). They do NOT vote here — SP voting is Phase 3, one task at a time.
 2. Manager consolidates questions in session memory, grouped by task. Manager folds Verifier corrections into the question batch: confirmed facts are noted; wrong/missing claims become questions if they need user input, or are queued as Leader edits if the fix is unambiguous.
 3. **Phase 1.5 — Persona triage (before anything reaches the user).** Manager spawns 3 Personas (fresh, in parallel) and gives each the full question batch + static pack:
@@ -88,18 +115,20 @@ If the harness supports it, run long work in the background and yield to keep th
 
 ### Phase 2 — Editing + review
 
-1. Leader edits the sprint file via targeted diffs: sections, headings, short sub-bullets under each task, inline snippets when necessary, ordering by (1) priority, (2) dependencies before dependents. Loads and enforces `references/sprint-format.md`. Treats the draft as suspect (rewrites to stand alone, strips conversation-only context).
-2. Leader applies all Verifier corrections (wrong facts, missing info, reuse findings) and all resolved `FIX:` directives. Resolved `FIX:` annotations are removed or folded into corrected task text.
-3. Three critics run **in parallel** over the sections changed this round → Leader fixes → re-run until both the Reviewer and the Clarity-Editor return `APPROVED`:
+1. **Read the sprint's `## Decisões de design` log first, and treat it as binding.** Before editing, the Leader reads the sprint's design-decision / sign-off log (see `references/sprint-format.md`) and treats every entry as a **locked constraint** — not informative context — so a later round never re-decides or silently undoes a choice the user already locked in an earlier round. As new design decisions and recurring-fix candidates surface this round, the Leader **appends** them to that log (never rewrites past entries).
+2. Leader edits the sprint file via targeted diffs: sections, headings, short sub-bullets under each task, inline snippets when necessary, ordering by (1) priority, (2) dependencies before dependents. Loads and enforces `references/sprint-format.md`. Treats the draft as suspect (rewrites to stand alone, strips conversation-only context).
+3. **Break to the smallest natural unit — not only when SP > 3.** The goal is *small tasks*, not "tasks that happen to be ≤ 3 SP". When a task decomposes into natural units, split it into one task per unit **even below 3 SP**. Concrete heuristic: **a new screen → its own task; a new route → its own task; a new entrypoint → its own task.** Conversely, it is NOT wrong to dedicate a whole task to a *single* unit when that unit is a bit more complex than usual, even if it stays under 3 SP. This natural-unit split happens here in Phase 2 (Leader editing); the SP-driven split (median > 3) is a separate, additive trigger in Phase 3.
+4. Leader applies all Verifier corrections (wrong facts, missing info, reuse findings) and all resolved `FIX:` directives. Resolved `FIX:` annotations are removed or folded into corrected task text.
+5. Three critics run **in parallel** over the sections changed this round → Leader fixes → re-run until both the Reviewer and the Clarity-Editor return `APPROVED`:
    - Reviewer (form/structure against `references/sprint-format.md`).
    - Clarity-Editor (`opus`, fresh spawn, cold-reader test, rewrite diffs).
    - UX-Critic (only if UI/flow in scope; else skip).
-4. **Cap: 3 rounds.** If unanimous approval isn't reached in 3 rounds, the Manager reports the deadlock to the user instead of looping.
+6. **Cap: 3 rounds.** If unanimous approval isn't reached in 3 rounds, the Manager reports the deadlock to the user instead of looping.
 
 ### Phase 3 — SP voting
 
 1. For each task in scope: spawn 3 **fresh** Evaluators (stateless), each with their lens. Each votes SP + 1-line justification. **Votes in parallel.**
-2. **Large task** (median > 3 SP): Leader breaks into subtasks → back to Phase 2 for the new ones → re-vote. **Cap: 2 break cycles per task.** If still over, mark `[NEEDS-SPLIT]` and continue.
+2. **Large task** (median > 3 SP): Leader breaks into subtasks → back to Phase 2 for the new ones → re-vote. **Cap: 2 *unproductive* break cycles per task — the counter measures lack of *progress*, not lack of *change*.** A cycle that changes the number of tasks (a real split into ≥2) or resolves an explicit `FIX:` is progress and **resets** the counter; a re-vote that leaves the task text and the task count unchanged (churn — same task rewritten back and forth) consumes one slot. After 2 slots with no progress, mark `[NEEDS-SPLIT]` and continue.
 3. **Divergence** (range > 2 SP, or a vote > 2× median): outlier explains, others counter, Leader judges. Distant votes are usually just misunderstandings — resolving the misunderstanding almost always refines the ticket further, so the outcome is an edit, not just a number:
    - High voter right → there was a missing detail; Leader edits the task to surface it (break if needed) → re-vote.
    - Low voter right → the high vote was a misunderstanding; Leader specifies the ambiguous part in the task so the next reader doesn't trip on it → re-vote.
@@ -108,7 +137,7 @@ If the harness supports it, run long work in the background and yield to keep th
 
 ### SP anchors (1 SP = 1 day)
 
-The day-based rubric (0.5 / 1 / 2 / 3 / >3 SP) lives in each Evaluator's role prompt (`references/evaluator-*.md`) — it is NOT re-injected from here, so the two stay in sync in one place. The Manager only needs the derived rule: **median > 3 SP → break the task** (a `>3 SP` vote means schema migration, new external integration, or design uncertainty).
+The day-based rubric (0.5 / 1 / 2 / 3 / >3 SP) lives in each Evaluator's role prompt (`references/evaluator-*.md`) — it is NOT re-injected from here, so the two stay in sync in one place. The Manager only needs the derived rule: **median > 3 SP → break the task** (a `>3 SP` vote means schema migration, new external integration, or design uncertainty). This SP trigger is *additive* to the natural-unit split the Leader already applies in Phase 2 (a new screen/route/entrypoint becomes its own task regardless of SP): small-but-natural units are already separated before voting, and the `>3` median catches whatever is still too big after that.
 
 Estimates are an internal planning tool (to decide what to break down); they do not need to be exposed to the wider team.
 
@@ -116,8 +145,9 @@ Estimates are an internal planning tool (to decide what to break down); they do 
 
 1. **SP stats block.** Manager generates the Story-Point stats block at the BOTTOM of the sprint once here (total + optional per-section breakdown) — not maintained by the Leader/Reviewer every editing round.
 2. **Confidence-driven extra round (in-run, actionable — not a report for the user).** Before handing off, the Manager reviews where the cluster had low confidence (tasks with unresolved Verifier `unknown`s, wide SP divergence, Clarity-Editor rewrites that didn't fully land, UX calls left open). If low-confidence areas remain and the round cap + cost budget allow, run one more targeted Phase-2/3 round on just those tasks instead of shipping them shaky.
-3. **Result commit.** Commit the refined sprint file — ONLY it — with a message summarizing what the run did (e.g. `sprint-refine: broke task X into 3, resolved N questions, +SP stats`). Report both SHAs (checkpoint + result) in the final message so the user can review with `git show <result-sha>`.
-4. **Skill meta-notes → eng-standards feedback loop.** Draft short meta-notes (kept in session memory — no file on disk) capturing how the *skill* performed — harness friction, rules that didn't fire, recurring FIX-type patterns, jargon/context-leak that slipped through. This is about improving the skill, NOT a summary of the sprint for the user to read (the user reviews the sprint diff directly). Then:
+3. **Promote recurring patterns into project memory (item-15a feed).** Scan the sprint's `## Decisões de design` log for FIXes/decisions that meet the admission criterion (user enunciated it as a PATTERN, OR the same miss recurred ≥2× this sprint) and append them to `project-memory/<repo>-{be,fe}.md` part (a), **deduping** against what's already there (never double-save). One-off fixes are NOT promoted. **Do this at the end of every refine run**, not at sprint-publish time — publishing may happen without the AI in the loop, so end-of-run is the reliable trigger; re-running across the sprint's multiple refine calls is harmless because dedup + the admission criterion keep it idempotent. Write the memory files in place; **do NOT commit or push them** — `project-memory/` is git-ignored and stays local (see "Project memory").
+4. **Result commit.** Commit the refined sprint file — ONLY it — with a message summarizing what the run did (e.g. `sprint-refine: broke task X into 3, resolved N questions, +SP stats`). Report both SHAs (checkpoint + result) in the final message so the user can review with `git show <result-sha>`.
+5. **Skill meta-notes → eng-standards feedback loop.** Draft short meta-notes (kept in session memory — no file on disk) capturing how the *skill* performed — harness friction, rules that didn't fire, recurring FIX-type patterns, jargon/context-leak that slipped through. This is about improving the skill, NOT a summary of the sprint for the user to read (the user reviews the sprint diff directly). Then:
    - **Scrub all client/business content** — no client names, screen names, file paths, business logic, or confidential data. Post only the generic pattern (e.g. "Leader carried conversation-only context into N tickets" → candidate rule), never the specifics of this sprint.
    - Append it as a comment on the eng-standards `improvements` issue (`gh issue list --label improvements --state open --limit 1` in the eng-standards repo), tagged `[sprint-refine]` so the distill bot routes it to its skill-feedback track (proposes edits to the skill's own files, not the rule packs).
 
@@ -166,3 +196,7 @@ See `references/leader.md`, `references/persona.md`, `references/reviewer.md`, `
 - UX-Critic runs only when UI/user-facing flow is in scope.
 - Persona panel (3 fresh `sonnet` stakeholder simulators) triages Phase-1 questions: ≥2 high-confidence converging answers auto-resolve judgment questions; knowledge questions (priorities, commitments, budget, credentials) always go to the user; auto-resolutions are logged in the sprint for async veto.
 - Every run closes out with a confidence-driven extra round (if needed) + scrubbed skill meta-notes to the eng-standards `improvements` issue, tagged `[sprint-refine]`.
+- Break to the smallest **natural unit** (new screen/route/entrypoint → own task) in Phase 2, even below 3 SP; the `>3 SP` median break in Phase 3 is an additive trigger, not the only one. A single unit slightly more complex than usual may stand alone as its own task under 3 SP.
+- Per-task loop counters measure lack of *progress*, not lack of *change*: a real split (task count changes) or a resolved `FIX:` resets the counter; churn (same task/count re-voted) consumes a slot.
+- Persistent **project memory** per target repo at `<skill-dir>/project-memory/<repo>-{be,fe}.md` (relative to the skill dir — the skill is public, no machine-specific path). Part (a) recurring patterns/conventions (admission: user-enunciated pattern OR ≥2× recurrence; obsolescence only via a new user FIX, never auto-expire); part (b) user-visible-capability feature inventory stamped to a commit hash, updated incrementally. Verifier reads it in Phase 1; patterns promoted at close-out.
+- Sprint carries a `## Decisões de design` log (option b — co-located, not a separate file): Leader reads it as **binding** at the start of each round and appends new decisions; it feeds the memory promotion at close-out; the human publisher deletes it (harmless if forgotten).
