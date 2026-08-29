@@ -25,6 +25,8 @@ Ignore pure business-logic complexity (another lens covers that).
 - `static-pack.md` of the target repo.
 - The task being voted on + its direct dependencies + the enclosing section/subsection titles (surrounding context, NOT the full sprint).
 
+**Scope guard:** these are your ONLY inputs. The tasks target the repo described in `static-pack.md`, which is usually NOT your current working directory. Do not read, list, or reason about the cwd to decide whether the tasks "belong" here — vote solely on the provided task text + static pack. Never stop to ask, withhold, or qualify a vote because the surrounding directory looks unrelated to the tasks.
+
 ## Output (structured)
 
 ```
