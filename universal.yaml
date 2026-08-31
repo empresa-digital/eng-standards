@@ -62,6 +62,36 @@ rules:
       finalizing the schema. Separate current-state tables from immutable audit/event
       tables explicitly.
 
+  - id: u-keep-incidental-duplication-inline
+    topic: Reuse
+    severity: nit
+    lintable: false
+    sources: ["improvements#26"]
+    principle: >
+      Extract a shared variable or helper only when the call sites express the SAME concept
+      and are meant to change together. When two sites merely look alike right now but
+      change for independent reasons — two SQL queries, two translation strings, two ad-hoc
+      DTOs — keep them inline so one can evolve without silently dragging the other.
+    wrong:
+      description: Hoist a fragment shared by two queries that will diverge independently.
+      code: |
+        cols := "id, name, status"                 // shared by two unrelated queries
+        db.Query(&a, "SELECT "+cols+" FROM users WHERE active")
+        db.Query(&b, "SELECT "+cols+" FROM users WHERE archived")  // editing cols hits both
+    right:
+      description: Write each query in full; each reads top-to-bottom and diverges freely.
+      code: |
+        db.Query(&a, "SELECT id, name, status FROM users WHERE active")
+        db.Query(&b, "SELECT id, name, status FROM users WHERE archived")
+    reason: >
+      Incidental duplication is cheaper than the wrong abstraction: a shared symbol couples
+      sites that should be free to diverge, so a change meant for one silently alters the
+      other. This is the deliberate counterweight to u-reuse-before-adding — reuse a
+      genuinely shared concept, but don't manufacture a shared one out of surface similarity.
+    solution: >
+      Before extracting, ask whether the sites change for the same reason. Same concept →
+      share it. Same shape by coincidence (queries, translations, one-off DTOs) → inline it.
+
   - id: u-translate-at-external-boundaries
     topic: Boundaries
     severity: blocker
