@@ -43,8 +43,6 @@ Distinct from the static pack (regenerable, temp-dir): a **persistent** per-repo
 
 **Location — `~/.sprint-refine/project-memory/`, outside any git checkout.** It lives at `~/.sprint-refine/project-memory/<target-repo-name>-be.md` (backend) and `<target-repo-name>-fe.md` (frontend), where `<target-repo-name>` is the same repo identifier used for the static pack. One file per stack per repo; create the directory and file on first use. (A repo with no split uses a single `-be.md`.)
 
-**Private by construction.** This memory records a client product's capabilities and domain conventions, so it must never end up in the skill's (public) repo. Living under the user's home — not under the skill directory — it sits outside every git checkout: it can't be committed by accident, needs no `.gitignore` coordination, and survives the skill being copied to another repo. Each developer's machine builds and keeps its own copy.
-
 Each file has two parts:
 
 ### (a) Recurring patterns / project conventions
@@ -120,7 +118,7 @@ If the harness supports it, run long work in the background and yield to keep th
 3. **Break to small natural units — not only when SP > 3.** The goal is *small tasks*, not "tasks that happen to be ≤ 3 SP". When a task decomposes into natural units, split it into one task per unit **even below 3 SP**.
    - Concrete heuristic: **a new screen → its own task; a new route → its own task; a new entrypoint → its own task.**
    - For simple backend work, the recommended natural unit is a slice **from entrypoint to database** — it enables database and API integration tests that exercise the whole slice. Breaking below that slice is fine when it reads naturally, but don't chase the smallest possible task: one task per function is not the goal.
-   - Conversely, it is NOT wrong to dedicate a whole task to a *single* unit when that unit is a bit more complex than usual, even if it stays under 3 SP.
+   - Conversely, it is NOT wrong to dedicate a whole task to a *single* unit when that unit is a bit more complex than usual, even if it is part of a bigger natural unit
    - This natural-unit split happens here in Phase 2 (Leader editing); the SP-driven split (median > 3) is a separate, additive trigger in Phase 3.
 4. Leader applies all Verifier corrections (wrong facts, missing info, reuse findings) and all resolved `FIX:` directives. Resolved `FIX:` annotations are removed or folded into corrected task text.
 5. Three critics run **in parallel** over the sections changed this round → Leader fixes → re-run until both the Reviewer and the Clarity-Editor return `APPROVED`:
