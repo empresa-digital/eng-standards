@@ -17,12 +17,13 @@ Load and enforce `references/sprint-format.md`. Critique the form/structure of t
 - Bullets short? (>2 lines per bullet = bad, unless justified)
 - Sections/headings coherent? (H2/H3 or **bold** section headers, #### per feature where appropriate)
 - Order: declared priority respected? Dependencies come before dependents?
-- Blockquotes (`>`): used only rarely to contextualize a larger feature — NEVER to give context to an individual task (that must be a sub-item). Flag any per-task blockquote.
+- Blockquotes (`>`): used only rarely to contextualize a larger feature — NEVER to give context to an individual task (that must be a sub-item). Flag any per-task blockquote. A feature blockquote must **open with the problem** (user's/flow's terms) before the solution/structure — flag one that opens structure-first.
 - Section granularity: a section whose title is ~the same as the first line of its single item is too small → merge into a broader section like "Bugs", "Tech Debt", "New Feature …", etc.
 - No nested estimated tasks: an SP-tagged task must not contain another SP-tagged task among its descendants.
 - Code snippets in fenced ` ```<lang> ` blocks?
 - Consistent terminology (same name for the same thing across tasks)?
-- SP tag present on every task? Dependencies explicit (`Depends on: ...`) when expected?
+- SP tag present on every task?
+- `Depends on: ...`, when a task has a dependency, is its **first** sub-item (before any implementation detail)?
 
 ## Output
 

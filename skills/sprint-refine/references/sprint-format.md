@@ -71,7 +71,7 @@ Non-task sub-items DO NOT have an SP tag.
 ...
 ```
 
-The fixed H2 sections are **Goals / Tasks / Stretch / Backlog / Open Questions**. Inside `## Tasks`, group related work under H3 (and H4) subsections named freely — feature names, "Bugs", "Tech Debt", "UX Improvements", or whatever splits the current tasks into comprehensible, related groups. Use that nesting when the sprint is large: organize tasks into H3 subgroups rather than leaving them all ungrouped at the top level of `## Tasks`. This is purely about grouping *within* `## Tasks` — it never means moving a task out to a different H2 section (see the scope rule below).
+The fixed H2 sections are **Goals / Tasks / Stretch / Backlog / Open Questions**, plus an optional transient **`## Design decisions`** log (see "Design-decision log" below) removed at publish. Inside `## Tasks`, group related work under H3 (and H4) subsections named freely — feature names, "Bugs", "Tech Debt", "UX Improvements", or whatever splits the current tasks into comprehensible, related groups. Use that nesting when the sprint is large: organize tasks into H3 subgroups rather than leaving them all ungrouped at the top level of `## Tasks`. This is purely about grouping *within* `## Tasks` — it never means moving a task out to a different H2 section (see the scope rule below).
 
 `## Backlog` is **out of scope by default**: only `## Tasks` and `## Stretch` get refined and estimated. Leave backlog items untouched unless the user explicitly asks; tasks change section only on user request, never on the skill's initiative.
 
@@ -90,6 +90,28 @@ When consecutive tasks in the same section switch stack (backend → frontend, a
 ## Task first line
 
 Each task's first line states the concrete *what* in plain terms — the change, the file/screen, the behavior — leaning on the surrounding section/subsection context rather than repeating it. Keep internal jargon and implementation details (method/field names, etc.) out of the first line unless they add clarity; put them as a sub-item if the dev needs them. Sentences that only make sense with the conversation that produced the draft (dropped decisions, "for later" asides) do not belong in the sprint at all.
+
+## Dependencies come first
+
+When a task depends on another, `Depends on: <short task name>` is its **first sub-item** — before any other detail. A dependency has to be read *before* work starts (it decides whether the task can even begin), so it must never be buried under implementation sub-items.
+
+```
+- [ ] Add the "generate report" button to the diligence screen `1 SP`
+  - Depends on: report-generation route
+  - Wires the button to `POST /diligences/:id/report`
+  - Disabled until the diligence has at least one approved item
+```
+
+## Feature blockquotes — problem first
+
+The rare feature blockquote (`>`) that introduces a larger feature must **open with the problem it solves, in the user's / the flow's terms**, and only then move to the solution and its technical structure. Do NOT open with the structural distinction — that lands on a reader who doesn't yet know why the feature exists. When in doubt, **verbose and clear beats short and obtuse.**
+
+- Bad (opens with structure): "> New entity `Finding` — **not** an extension of `Review`. …"
+- Good (opens with the problem): "> Today a review reports a red/yellow flag and that flow has to be fast so the lawyer doesn't forget to report it; but afterwards it has to be investigated in depth and documented — for that we create the `Finding` entity as a follow-up to a review. Structurally it is a new entity, not an extension of `Review`, because …"
+
+## Design-decision log
+
+The sprint may carry a `## Design decisions` (sign-off) section holding the design choices the user locked during refinement. The canonical title is English; when the sprint is written in another language the title may be localized (e.g. `## Decisões de design` in Portuguese) — treat either as this same section. It exists so a paused-and-resumed refinement never re-decides or undoes an accepted choice: the Leader reads it as **binding** at the start of every round and **appends** new decisions as they arise (see `leader.md`). It is the natural source from which genuine recurring patterns are later promoted to the skill's persistent project memory. Whoever publishes the sprint deletes this section; forgetting to is harmless (a stale log in a shipped sprint does nothing).
 
 ## Actions, not artifacts
 
