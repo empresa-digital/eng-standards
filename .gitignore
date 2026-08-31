@@ -4,6 +4,3 @@ __pycache__/
 
 # Distill run state — lists private repo names + last-run watermark. Local only.
 distill/config.local.json
-
-# sprint-refine per-project memory — client capabilities + domain conventions. Local only.
-skills/sprint-refine/project-memory/

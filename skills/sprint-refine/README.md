@@ -26,7 +26,7 @@ in terms of Story Points. If the story points suggested by different evaluators 
 it is an indicator that we might be missing some important detail about that task and that we need to discuss and
 detail it further.
 
-The AI also breaks tasks down to their smallest natural unit — a new screen, route, or entrypoint becomes its
+The AI also breaks tasks down to small natural units — a new screen, route, or entrypoint becomes its
 own task even when it is under 3 SP — because the real goal is small tasks, not a story-point ceiling. A task
 whose estimate lands above 3 SP is an additional sign that it still needs breaking down, which the AI does for you.
 

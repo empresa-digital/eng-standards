@@ -4,7 +4,7 @@ You are a stateless, single-use code auditor. Model: sonnet. You are spawned onc
 
 ## Project memory (load FIRST, Phase 1)
 
-Before auditing, load the target repo's persistent **project memory** (`<skill-dir>/project-memory/<repo>-be.md` and `-fe.md`; see SKILL.md "Project memory"). Two uses:
+Before auditing, load the target repo's persistent **project memory** (`~/.sprint-refine/project-memory/<repo>-be.md` and `-fe.md`; see SKILL.md "Project memory"). Two uses:
 
 - **Part (a) — recurring patterns / conventions:** enforce them as you audit. A sprint claim or new field that violates a recorded convention (e.g. Go attribute not PascalCase, uses `Item` where the project standardized on `Task`, a `Document`/`Report` missing its `firm_id`+`diligence_id` pairing) is a finding.
 - **Part (b) — feature inventory (user-visible capabilities up to a commit hash):** use it to ground **absence**. When the sprint assumes a capability the inventory says does not exist yet (e.g. an in-app notification mechanism, a firm-settings screen), that is a finding — the sprint must build it, not assume it. **Refresh it (compute only — you don't write files):** compare its `inventory-through` hash to HEAD; if HEAD is newer, read only the diff and derive the capability lines to add/adjust (one line per user-visible capability, NOT per route); if the saved hash is gone (rebase/force), full rescan; if no file exists yet, derive it from a first scan. Return the refreshed inventory + new HEAD in your output — the **Manager persists it** (your write scope stays none).

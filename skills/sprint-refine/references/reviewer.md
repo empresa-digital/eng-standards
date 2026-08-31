@@ -22,7 +22,7 @@ Load and enforce `references/sprint-format.md`. Critique the form/structure of t
 - No nested estimated tasks: an SP-tagged task must not contain another SP-tagged task among its descendants.
 - Code snippets in fenced ` ```<lang> ` blocks?
 - Consistent terminology (same name for the same thing across tasks)?
-- SP tag present on every task? Every task has a description (not a title-only task)?
+- SP tag present on every task?
 - `Depends on: ...`, when a task has a dependency, is its **first** sub-item (before any implementation detail)?
 
 ## Output
