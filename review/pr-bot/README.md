@@ -27,6 +27,20 @@ review/pr-bot/run.sh empresa-digital/empresa-digital 557 --post
 > the CLI reads it and it can shadow your interactive login, breaking things like
 > `/usage`. Set it only in the CI job's environment.
 
+## CI / GitHub Actions
+
+`github-actions.example.yml` is a ready-to-copy `pull_request` workflow. Copy it into
+the target repo as `.github/workflows/eng-standards-pre-review.yml`, set `<ORG>` to the
+eng-standards owner, and add two secrets:
+
+- `CLAUDE_CODE_OAUTH_TOKEN` — a plan OAuth token (`claude setup-token`), so runs bill
+  against the plan, not the API.
+- `ENG_STANDARDS_TOKEN` — a read PAT for the private eng-standards repo (drop it, and the
+  `token:` line, if eng-standards is public).
+
+The job checks out both repos, installs the toolchain (`envsubst`, `pyyaml`, `claude`),
+and runs `run.sh … --post`. It only comments — never merges or approves.
+
 ## What it does
 
 1. Fetches the PR diff + metadata via `gh`.
@@ -85,6 +99,7 @@ bot for another org, edit that org's profile — not this tool. (Reading it need
 
 **Phase 1 — experimental.** The bot only comments; it does **not** merge or approve.
 The PR author self-merges changes it marks SAFE. Phase 2 (bot auto-approves SAFE on the
-team's behalf) waits until its SAFE calls are shown to match human judgment. A natural
-home for the trigger is a GitHub Actions `pull_request` workflow; today it runs on
-demand / from a local cron.
+team's behalf) waits until its SAFE calls are shown to match human judgment. The
+GitHub Actions `pull_request` trigger is drafted in `github-actions.example.yml` (see
+[CI](#ci--github-actions)); until it's installed, the bot runs on demand / from a
+local cron.

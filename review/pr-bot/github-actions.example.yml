@@ -1,0 +1,69 @@
+# EXAMPLE — copy into a target repo as .github/workflows/eng-standards-pre-review.yml
+#
+# Automatic PR pre-review using the eng-standards pr-bot: runs the reviewer +
+# architecture pass, classifies SAFE vs NEEDS_HUMAN (fail-closed), and posts one
+# gate comment. Bills against the Claude *plan* (CLAUDE_CODE_OAUTH_TOKEN), NOT the
+# metered API — this is the whole point vs. the old claude-review.yml.
+#
+# One-time setup in the target repo (owner does this):
+#   1. `claude setup-token` while logged into the Max plan → copy the token.
+#   2. Repo → Settings → Secrets and variables → Actions → New secret:
+#        CLAUDE_CODE_OAUTH_TOKEN = <that token>
+#   3. eng-standards is private, so the job checks it out with a read token:
+#        ENG_STANDARDS_TOKEN = a fine-grained PAT (or classic PAT) with
+#        read (contents) access to the eng-standards repo. If eng-standards were
+#        public, drop that secret and the `token:` line below.
+#
+# Calibration note: keep this in dry-run-equivalent (comment-only) mode. The bot
+# comments; it never merges or approves. Promote to Phase 2 (auto-approve SAFE)
+# only after its SAFE verdicts are shown to match human judgment.
+
+name: eng-standards pre-review
+
+on:
+  pull_request:
+    types: [opened, reopened, synchronize]
+
+concurrency:
+  # One review in flight per PR; a new push cancels the older run.
+  group: eng-review-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  pre-review:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: write   # to post the gate comment
+    steps:
+      - name: Check out the PR repo
+        uses: actions/checkout@v4
+        with:
+          # Full history so the throwaway worktree at the PR head resolves cleanly.
+          fetch-depth: 0
+
+      - name: Check out eng-standards (rule library + pr-bot)
+        uses: actions/checkout@v4
+        with:
+          repository: <ORG>/eng-standards           # <-- set the real owner/name
+          token: ${{ secrets.ENG_STANDARDS_TOKEN }} # drop if eng-standards is public
+          path: eng-standards
+
+      - name: Install toolchain (envsubst, pyyaml, claude CLI)
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq gettext-base   # provides envsubst
+          python3 -m pip install --quiet pyyaml
+          npm install -g @anthropic-ai/claude-code    # provides `claude`
+
+      - name: Run pre-review (plan-billed, fail-closed) and post the comment
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}                       # gh pr diff/view + comment
+          CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          ENG_DIR: ${{ github.workspace }}/eng-standards              # rule library root
+          REPO_DIR: ${{ github.workspace }}                           # repo under review
+        run: |
+          ./eng-standards/review/pr-bot/run.sh \
+            "${{ github.repository }}" \
+            "${{ github.event.pull_request.number }}" \
+            --post
