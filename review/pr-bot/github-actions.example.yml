@@ -9,10 +9,9 @@
 #   1. `claude setup-token` while logged into the Max plan → copy the token.
 #   2. Repo → Settings → Secrets and variables → Actions → New secret:
 #        CLAUDE_CODE_OAUTH_TOKEN = <that token>
-#   3. eng-standards is private, so the job checks it out with a read token:
-#        ENG_STANDARDS_TOKEN = a fine-grained PAT (or classic PAT) with
-#        read (contents) access to the eng-standards repo. If eng-standards were
-#        public, drop that secret and the `token:` line below.
+# That's the only secret: eng-standards is public, so its checkout needs no token.
+# (If it ever goes private, add a read-contents PAT as ENG_STANDARDS_TOKEN and
+# pass it via `token:` on that checkout step.)
 #
 # Calibration note: keep this in dry-run-equivalent (comment-only) mode. The bot
 # comments; it never merges or approves. Promote to Phase 2 (auto-approve SAFE)
@@ -45,8 +44,7 @@ jobs:
       - name: Check out eng-standards (rule library + pr-bot)
         uses: actions/checkout@v4
         with:
-          repository: <ORG>/eng-standards           # <-- set the real owner/name
-          token: ${{ secrets.ENG_STANDARDS_TOKEN }} # drop if eng-standards is public
+          repository: empresa-digital/eng-standards
           path: eng-standards
 
       - name: Install toolchain (envsubst, pyyaml, claude CLI)
