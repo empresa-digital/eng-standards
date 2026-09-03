@@ -30,13 +30,13 @@ review/pr-bot/run.sh empresa-digital/empresa-digital 557 --post
 ## CI / GitHub Actions
 
 `github-actions.example.yml` is a ready-to-copy `pull_request` workflow. Copy it into
-the target repo as `.github/workflows/eng-standards-pre-review.yml`, set `<ORG>` to the
-eng-standards owner, and add two secrets:
+the target repo as `.github/workflows/eng-standards-pre-review.yml` and add one secret:
 
 - `CLAUDE_CODE_OAUTH_TOKEN` — a plan OAuth token (`claude setup-token`), so runs bill
   against the plan, not the API.
-- `ENG_STANDARDS_TOKEN` — a read PAT for the private eng-standards repo (drop it, and the
-  `token:` line, if eng-standards is public).
+
+eng-standards is public, so its checkout needs no token. (If it ever goes private, add
+a read-contents PAT as `ENG_STANDARDS_TOKEN` and pass it via `token:` on that step.)
 
 The job checks out both repos, installs the toolchain (`envsubst`, `pyyaml`, `claude`),
 and runs `run.sh … --post`. It only comments — never merges or approves.
