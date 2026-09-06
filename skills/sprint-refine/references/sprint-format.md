@@ -134,7 +134,9 @@ Task text is also **attribution-free, persona-free, and date-free**: no "confirm
 
 A section whose title is ~the same as the first line of its single item is too small. Group such items into a broader section (e.g. "Bugs", "Tech Debt", "New Feature …") instead of one section per item.
 
-Avoid adding comments to the beginning of a section (e.g. using blockquotes `>`) that really reference a specific task — anything that references a specific task belongs on the task's first line or as a sub-item. Blockquotes are only for context on a larger feature, and only rarely.
+Anything that references a specific task belongs inside that task's hierarchy — its first line or a sub-item — never a section-level comment. So flag a comment at the **start of a section** (e.g. a blockquote `>`) that really references a specific task: move it onto that task.
+
+A blockquote (`>`) is fine in two shapes: (1) rarely, at section level, for context on a larger feature (see "Feature blockquotes" above); or (2) as a **per-task sub-item** carrying an authorial note, aside, or observation — the author's own comment, a suggested reference, a "feel free to revise the UX here". A per-task `>` is legitimate and must be **preserved**, on two conditions: it is nested under its task (not at section level), and it describes **only that task** — not another task, not the sprint at large, not external context. Flag/relocate one that violates either condition; do not strip one that satisfies both.
 
 ## SP stats block
 
