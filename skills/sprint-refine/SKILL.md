@@ -37,6 +37,8 @@ The target repo is different from the sprint directory. Before Phase 0, ask the 
 
 Agents receive: static pack + relevant sprint excerpt. Evaluators: the task being voted on + its direct dependencies + the enclosing section/subsection titles (the surrounding context a task inherits from its place in the hierarchy — so a ticket doesn't have to repeat it). This excerpt is embedded **verbatim in the evaluator's spawn prompt** — do NOT hand an evaluator the sprint file path with a "read only section N" instruction; scoped-by-pointer leaks (the evaluator reads the whole file and votes out-of-scope tasks). Leader/Reviewer: the current sprint file read from disk.
 
+**Embed verbatim, never a compressed summary — for every critic, not just Evaluators.** Whenever a critic (Evaluator, Reviewer, Clarity-Editor) is given task text, hand it the text **verbatim**. Never substitute a compressed one-line-per-task summary: a summary manufactures phantom FORM/structure findings the same way a scoped-by-pointer leak manufactures out-of-scope votes — the critic critiques your paraphrase, not the sprint. This matters most under batched voting (below), where the temptation to summarize to save tokens is highest.
+
 ## Project memory (persistent, per target repo)
 
 Distinct from the static pack (regenerable, temp-dir): a **persistent** per-repo memory that gives the cluster head-start context so it stops re-making the same misses across sprints. Unlike the static pack, it is NEVER auto-regenerated from scratch — it accumulates.
@@ -130,6 +132,7 @@ If the harness supports it, run long work in the background and yield to keep th
 ### Phase 3 — SP voting
 
 1. For each task in scope: spawn 3 **fresh** Evaluators (stateless), each with their lens. Each votes SP + 1-line justification. **Votes in parallel.**
+   - **Batched voting when task count is large (> ~5).** Per-task fresh spawns cost 3×N; above ~5 tasks that dominates the run. Instead, spawn **one Evaluator per lens (3 total)**, each voting **all** in-scope tasks in a single prompt with **every task's text embedded verbatim** (per the verbatim rule above). This is ~9× cheaper at ~9 tasks and is the sanctioned cost-control path — distinct from the **forbidden** "hand a file path, vote section N" (which leaks). The accepted trade-off is less per-task isolation (one evaluator sees sibling tasks), so keep per-task fresh spawns as the default at small counts (≤ ~5), where isolation is cheap and avoids cross-task anchoring.
 2. **Large task** (median > 3 SP): Leader breaks it into subtasks → back to Phase 2 for the new ones → re-vote.
    - **Anti-loop cap: 2 *unproductive* break cycles per task.** The counter measures lack of *progress*, not lack of *change*:
      - Progress (**resets** the counter): the cycle changes the number of tasks (a real split into ≥2), or resolves an explicit `FIX:`.
@@ -182,6 +185,7 @@ If the Phase-1 estimate already signals a >$5 run, pause before starting Phase 2
 - Static pack reused when the target repo hasn't changed (commit hash + dirty + mtime).
 - Sprint file always edited in-place, never re-emitted in chat output.
 - Evaluators receive only the task being voted on + dependencies, not the full sprint.
+- Batched voting (> ~5 tasks): one Evaluator per lens votes all tasks in one prompt (text embedded verbatim), instead of 3 fresh spawns per task — see Phase 3.
 - Questions to the user always in batch, 1 message per round.
 
 ## Output
