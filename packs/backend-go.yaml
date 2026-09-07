@@ -68,7 +68,7 @@ rules:
     severity: nit
     lintable: false
     sources: [be-001]
-    ideals: [legibilidade, block-hasty-new-abstractions]
+    ideals: [legibility, block-hasty-new-abstractions]
     principle: >
       Don't add a service method that only forwards to the repository. Call the
       repository directly from the controller.
@@ -131,7 +131,7 @@ rules:
     severity: nit
     lintable: true
     sources: [be-004]
-    ideals: [nomeacao]
+    ideals: [naming]
     principle: Don't repeat the package name or struct name in its members.
     wrong:
       description: Member name repeats the package.
@@ -208,7 +208,7 @@ rules:
     severity: nit
     lintable: false
     sources: [be-008]
-    ideals: [legibilidade]
+    ideals: [legibility]
     principle: Simplify checks when possible; don't re-check conditions unnecessarily.
     wrong:
       code: |

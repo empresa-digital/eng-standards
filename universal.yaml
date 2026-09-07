@@ -9,7 +9,7 @@ rules:
     severity: blocker
     lintable: false
     sources: [ge-001, fe-015]
-    ideals: [legibilidade]
+    ideals: [legibility]
     principle: Choose the simplest solution that solves the problem; favor clarity over cleverness.
     reason: >
       Cleverness cuts both ways. Dense one-liners hide intent, and needless intermediate
@@ -100,7 +100,7 @@ rules:
     severity: nit
     lintable: false
     sources: ["sylphie-ideals-audit-2026-09-07"]
-    ideals: [legibilidade]
+    ideals: [legibility]
     principle: >
       Handle the exceptional case first with a guard clause and return early, rather than
       wrapping the happy path inside an `else` or a deeper nest. Every level of nesting
@@ -259,7 +259,7 @@ rules:
     severity: nit
     lintable: false
     sources: [ge-003, be-005, be-020]
-    ideals: [nomeacao]
+    ideals: [naming]
     principle: >
       Names describe what the thing is or does. Distinct purposes get distinct names.
     wrong:
