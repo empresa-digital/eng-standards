@@ -68,6 +68,7 @@ rules:
     severity: nit
     lintable: false
     sources: [be-001]
+    ideals: [legibility, block-hasty-new-abstractions]
     principle: >
       Don't add a service method that only forwards to the repository. Call the
       repository directly from the controller.
@@ -111,6 +112,7 @@ rules:
     severity: nit
     lintable: false
     sources: [be-003]
+    ideals: [block-hasty-new-abstractions]
     principle: Don't create a struct just to return a couple of values.
     wrong:
       description: A result struct for two fields.
@@ -129,6 +131,7 @@ rules:
     severity: nit
     lintable: true
     sources: [be-004]
+    ideals: [naming]
     principle: Don't repeat the package name or struct name in its members.
     wrong:
       description: Member name repeats the package.
@@ -205,6 +208,7 @@ rules:
     severity: nit
     lintable: false
     sources: [be-008]
+    ideals: [legibility]
     principle: Simplify checks when possible; don't re-check conditions unnecessarily.
     wrong:
       code: |
