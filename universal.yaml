@@ -9,6 +9,7 @@ rules:
     severity: blocker
     lintable: false
     sources: [ge-001, fe-015]
+    ideals: [legibilidade]
     principle: Choose the simplest solution that solves the problem; favor clarity over cleverness.
     reason: >
       Cleverness cuts both ways. Dense one-liners hide intent, and needless intermediate
@@ -20,6 +21,7 @@ rules:
     severity: blocker
     lintable: false
     sources: [be-001, be-003, be-022, be-041, te-004, "agent-improvements#1,6,16,25,29,30,36,37,40"]
+    ideals: [block-hasty-new-abstractions]
     principle: >
       Before creating a new type, method, mock, adapter, or helper, prove no existing
       one already expresses it.
@@ -67,6 +69,7 @@ rules:
     severity: nit
     lintable: false
     sources: ["improvements#26"]
+    ideals: [block-hasty-new-abstractions]
     principle: >
       Extract a shared variable or helper only when the call sites express the SAME concept
       and are meant to change together. When two sites merely look alike right now but
@@ -91,6 +94,42 @@ rules:
     solution: >
       Before extracting, ask whether the sites change for the same reason. Same concept →
       share it. Same shape by coincidence (queries, translations, one-off DTOs) → inline it.
+
+  - id: u-early-return-over-else
+    topic: Simplicity
+    severity: nit
+    lintable: false
+    sources: ["sylphie-ideals-audit-2026-09-07"]
+    ideals: [legibilidade]
+    principle: >
+      Handle the exceptional case first with a guard clause and return early, rather than
+      wrapping the happy path inside an `else` or a deeper nest. Every level of nesting
+      avoided is one less branch the reader has to hold in their head.
+    wrong:
+      description: Happy path pushed inside an else, one level deeper than it needs to be.
+      code: |
+        if ok {
+          // ... long happy path ...
+          return result
+        } else {
+          return err
+        }
+    right:
+      description: Guard the failure and return; keep the happy path flat and linear.
+      code: |
+        if !ok {
+          return err
+        }
+        // ... long happy path, un-indented ...
+        return result
+    reason: >
+      Deep nesting raises cognitive load — the reader tracks the branch condition through
+      the whole enclosed block. Returning early on the exceptional case keeps the main line
+      at the lowest indentation and lets each check be forgotten once it passes. Not dogmatic:
+      when short, symmetric branches genuinely read better as an explicit if/else, keep it.
+    solution: >
+      Invert the condition, return/continue/break early on the exceptional case, and dedent
+      the happy path.
 
   - id: u-translate-at-external-boundaries
     topic: Boundaries
@@ -220,6 +259,7 @@ rules:
     severity: nit
     lintable: false
     sources: [ge-003, be-005, be-020]
+    ideals: [nomeacao]
     principle: >
       Names describe what the thing is or does. Distinct purposes get distinct names.
     wrong:
@@ -378,6 +418,7 @@ rules:
     severity: blocker
     lintable: false
     sources: ["agent-improvements#2,4,24,35"]
+    ideals: [block-hasty-new-abstractions]
     principle: >
       When a request or a design fork raises complexity, or creates a second source of
       truth, STOP and surface the tradeoff before implementing.

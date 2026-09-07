@@ -47,6 +47,7 @@ rules:
     severity: blocker        # blocker | nit
     lintable: false          # true = mechanically checkable; offload target for our linter
     sources: [be-001]        # origin refs (source rule ids / logged review cases)
+    ideals: [legibilidade]   # optional: ideals this rule feeds (see Notes)
     principle: One-line statement of the rule.   # optional if wrong/right is enough
     wrong:
       description: What the bad version does.
@@ -66,6 +67,10 @@ Notes:
   pair adds value (common in `universal.yaml`).
 - `id`s are stable: the eval asserts the review agent flags the matching `id`,
   and each `wrong`/`right` pair doubles as a test fixture (see `CONTRIBUTING.md`).
+- `ideals:` (optional) tags a rule with the ideal(s) it feeds in an external
+  ideal-based reviewer. It's a forward hook: a downstream tool can collect all
+  rules carrying a given ideal's tag and hand them to that ideal's judge as
+  deterministic evidence. Ignored by this repo's own reviewer/validator.
 
 ## Using this library
 
