@@ -92,6 +92,38 @@ rules:
       Before extracting, ask whether the sites change for the same reason. Same concept →
       share it. Same shape by coincidence (queries, translations, one-off DTOs) → inline it.
 
+  - id: u-inline-single-use-named-value
+    topic: Simplicity
+    severity: nit
+    lintable: false
+    sources: ["improvements#29"]
+    principle: >
+      Inline a single-use local variable or constant that only aliases a self-evident
+      literal and adds no naming value. Keep a named constant only when the name earns its
+      keep — it documents an opaque or external value (a magic number/header, a wire format
+      string) or an expression whose meaning isn't obvious at the use site.
+    wrong:
+      description: A constant used once whose name only restates a self-evident literal.
+      code: |
+        const timezone = "America/Sao_Paulo"   // used once, name adds nothing
+        loc, _ := time.LoadLocation(timezone)
+    right:
+      description: Inline the obvious literal; reserve a name for opaque/external values.
+      code: |
+        loc, _ := time.LoadLocation("America/Sao_Paulo")
+
+        const pdfMagicHeader = "%PDF-"   // keep: names an opaque external constant
+    reason: >
+      A single-use constant that only renames a self-evident literal forces the reader to
+      jump to its definition to learn what reads in one line at the use site, and it looks
+      like shared config that isn't. This differs from u-no-dead-scaffolding (which targets
+      *unused* scaffolding) — this value is used, just once — and it is the everyday case of
+      u-clear-is-better-than-clever's "needless intermediate variables."
+    solution: >
+      Before naming a value used once, ask whether the name tells the reader something the
+      literal doesn't. If not, inline it; reserve a named constant for opaque/external
+      values or expressions whose meaning isn't obvious where they're used.
+
   - id: u-translate-at-external-boundaries
     topic: Boundaries
     severity: blocker
