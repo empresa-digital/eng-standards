@@ -152,6 +152,19 @@ Cite the **exact rule `id`** in square brackets for every finding — downstream
 on it, and a bracketed id means the rule was **violated** (never bracket an id to say a rule
 is satisfied or N/A).
 
+**Zero findings across all three categories → the whole report is one line:**
+
+```
+## Architecture
+No architectural problems detected (boundaries, coupling, and enforcement checked).
+```
+
+Do not pad a clean result with empty sections — the human reads this inside a PR comment,
+and section headers full of "None" bury the findings of the general reviewer around them.
+
+**When there ARE findings**, emit only the sections that have at least one finding, in this
+format, and omit the others entirely:
+
 ```
 ## Boundary violations
 - [rule-id] path/to/file.go:LINE — the dependency, the role it sits in, and why it is not
@@ -163,16 +176,13 @@ is satisfied or N/A).
 
 ## Enforcement gaps
 - [go-arch-import-boundary-enforced] module — documented architecture, no import-boundary
-  lint. Fix: run the go-arch-lint-setup skill for this module. "None" if enforced or N/A.
-
-## Dependencies reviewed
-- A terse per-file list of the dependencies you enumerated and their verdict
-  (allowed / forbidden), so the author can see the check was exhaustive, not spot-checked.
+  lint. Fix: run the go-arch-lint-setup skill for this module.
 ```
 
-The last section is **mandatory** — it is the evidence that Step 2 actually happened. If a
-file had no new dependencies, say so for that file. Never invent violations to fill a
-section; "None" is an honest and expected answer for the first three.
+The per-file dependency enumeration of Step 2 is **working material, not report output**: do
+the exhaustive walk, but never publish the file-by-file "allowed/forbidden" list — the human
+reviewer doesn't read it, and it dwarfs the actual findings. If a specific dependency verdict
+is load-bearing for a finding, cite it inside that finding.
 
 ## Rules of engagement
 

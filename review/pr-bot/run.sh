@@ -70,6 +70,13 @@ gh pr diff "$PR" --repo "$REPO" > "$DIFF_FILE"
 gh pr view "$PR" --repo "$REPO" --json title,body,headRefName \
   --template $'TITLE: {{.title}}\nBRANCH: {{.headRefName}}\n\n{{.body}}' > "$META_FILE"
 
+# CI status snapshot: the reviewer must not (and cannot) run tests/builds itself,
+# so hand it the repo's own CI verdicts to read instead. `gh pr checks` exits
+# non-zero while checks are pending/failing — that's data, not an error here.
+CI_FILE="$WORK/pr.checks"
+gh pr checks "$PR" --repo "$REPO" > "$CI_FILE" 2>&1 || true
+[ -s "$CI_FILE" ] || echo "(no CI checks reported for this PR yet)" > "$CI_FILE"
+
 # Check out the PR head into a throwaway worktree so we never disturb REPO_DIR's
 # working tree or current branch.
 echo ">> preparing worktree at PR head" >&2
@@ -78,9 +85,9 @@ HEAD_SHA="$(git -C "$REPO_DIR" rev-parse FETCH_HEAD)"
 git -C "$REPO_DIR" worktree add -q --detach "$WT" "$HEAD_SHA"
 
 # Build the orchestrator prompt with paths substituted in.
-PROMPT="$(DIFF_FILE="$DIFF_FILE" META_FILE="$META_FILE" ENG_DIR="$ENG_DIR" \
+PROMPT="$(DIFF_FILE="$DIFF_FILE" META_FILE="$META_FILE" CI_FILE="$CI_FILE" ENG_DIR="$ENG_DIR" \
   ORG_PROFILE="$ORG_PROFILE" PR_REVIEW_LANG="$PR_REVIEW_LANG" \
-  envsubst '$DIFF_FILE $META_FILE $ENG_DIR $ORG_PROFILE $PR_REVIEW_LANG' \
+  envsubst '$DIFF_FILE $META_FILE $CI_FILE $ENG_DIR $ORG_PROFILE $PR_REVIEW_LANG' \
   < "$(dirname "$0")/orchestrator.md")"
 
 echo ">> running review (model: $MODEL)" >&2
