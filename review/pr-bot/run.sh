@@ -84,8 +84,32 @@ PROMPT="$(DIFF_FILE="$DIFF_FILE" META_FILE="$META_FILE" ENG_DIR="$ENG_DIR" \
   < "$(dirname "$0")/orchestrator.md")"
 
 echo ">> running review (model: $MODEL)" >&2
+# Verification tools: headless `claude -p` denies (without asking) any tool that
+# would need interactive approval, which left the reviewer blind to the network
+# and unable to inspect dependency source — on dependency bumps it could only
+# report "no network access" instead of diffing the two versions. Allow a
+# curated read-only set: web lookups plus non-mutating go/git commands.
+# Deliberately NOT allowed: `gh` (its token can write to the repo) and arbitrary
+# Bash — the diff under review is untrusted input, so a write-capable tool would
+# let a prompt injection act instead of just talk.
+ALLOWED_TOOLS=(
+  WebFetch
+  WebSearch
+  "Bash(go mod download:*)"
+  "Bash(go list:*)"
+  "Bash(go doc:*)"
+  "Bash(go env:*)"
+  "Bash(go vet:*)"
+  "Bash(git log:*)"
+  "Bash(git show:*)"
+  "Bash(git diff:*)"
+)
+# Let the reviewer read the dependency source that `go mod download` fetches.
+GOMODCACHE_DIR="$(go env GOMODCACHE 2>/dev/null || echo "$HOME/go/pkg/mod")"
+mkdir -p "$GOMODCACHE_DIR"
 ( cd "$WT" && claude -p "$PROMPT" --model "$MODEL" \
-    --add-dir "$ENG_DIR" --add-dir "$WORK" ) > "$OUT_FILE"
+    --add-dir "$ENG_DIR" --add-dir "$WORK" --add-dir "$GOMODCACHE_DIR" \
+    --allowedTools "${ALLOWED_TOOLS[@]}" ) > "$OUT_FILE"
 
 # Parse the verdict.
 CLASS="$(grep -m1 '^CLASSIFICATION:' "$OUT_FILE" | awk '{print $2}')"
