@@ -171,6 +171,32 @@ rules:
       `core.InternalErr`, etc.
     reason: House naming for the domain-error pattern (the principle is in go-adapters-return-domain-errors).
 
+  - id: ed-error-titles-greppable
+    topic: Errors
+    severity: blocker
+    lintable: false
+    sources: ["user-2026-09-19 (PR empresa-digital#612)"]
+    principle: >
+      Domain-error and log titles are always simple hard-coded strings — no fmt verbs,
+      no interpolation, no long prose or idiomatic expressions — carrying enough of the
+      surrounding context to be descriptive and unique, so a single grep for the title
+      finds exactly the origin of the error or log. Dynamic values go in the structured
+      payload (the map argument), never in the title.
+    wrong:
+      code: |
+        return core.InternalErr(fmt.Sprintf("failed to roll back issuance of report %d", id), nil)
+        return core.InternalErr("CRITICAL: the rollback also failed, so the claim is standing without a PDF behind it — manual attention required", data)
+    right:
+      code: |
+        return core.InternalErr("error rolling back issued status on PDF", map[string]any{
+          "reportId": id, "uploadErr": upErr, "rollbackErr": rbErr,
+        })
+    reason: >
+      A title with interpolated values or free prose cannot be grepped back to its source;
+      a unique hard-coded string can. Alarm language ("manual attention required") is
+      redundant here: every untreated InternalErr already notifies the devs — company
+      policy — so the title only needs to identify the failure site.
+
   - id: ed-max-open-conns
     topic: Config
     severity: blocker
