@@ -285,13 +285,18 @@ rules:
     sources: ["user-2026-07"]
     principle: >
       A comment earns its place only by capturing intent the code cannot express — a
-      non-obvious WHY. Default to no comment. Never restate what the next line already
-      says, explain a primitive any reader of the language/tool knows, or paste the
-      prompt/chat rationale that led to the code inline.
+      non-obvious WHY, in ONE line. Default to no comment: in a typical diff most hunks
+      add zero comments, and new code matches the comment density of the surrounding
+      file, not the density the author needed while reasoning. Never restate what the
+      next line already says, explain a primitive any reader of the language/tool knows,
+      paste the prompt/chat rationale that led to the code inline, or write a multi-line
+      essay defending the change to its reviewer — justification aimed at whoever
+      approves the diff belongs in a PR comment, not welded into the source.
     wrong:
       description: >
-        Comments that paraphrase the adjacent code, narrate a self-evident primitive, or
-        bake in the reasoning from the task that produced the change.
+        Comments that paraphrase the adjacent code, narrate a self-evident primitive,
+        bake in the reasoning from the task that produced the change, or defend the
+        implementation choice in paragraph form.
       code: |
         // increment the retry counter
         retries++
@@ -301,6 +306,12 @@ rules:
 
         // The reviewer asked why 1s was too low, so this raises it to 5s
         timeout: 5s
+
+        // Validate here rather than trusting the converter: a 200 does not
+        // guarantee a usable payload, and checking at this point gives a
+        // precise diagnostic instead of a generic failure further down.
+        // This is safe because the body is already fully in memory.
+        if err := validate(resp); err != nil { ... }
     right:
       description: >
         No comment when the code speaks for itself; one line only where the WHY is
@@ -312,18 +323,27 @@ rules:
 
         # 1s tripped healthy backends into failover under normal P99 (~3s)
         timeout: 5s
+
+        # A converter 200 is no proof the body is a usable payload.
+        if err := validate(resp); err != nil { ... }
     reason: >
       A comment that repeats the code doubles the surface that can drift out of sync and
       trains readers to skip comments, so the one comment that matters gets skimmed too.
       Explaining a primitive insults the reader and adds noise; task/prompt rationale is a
       point-in-time artifact that belongs in the PR description, not welded into the source
       forever. What the code cannot recover on its own — why a threshold, why a workaround,
-      why the non-obvious path — is the only thing worth the line.
+      why the non-obvious path — is the only thing worth the line. LLM authors fail here by
+      volume, not only by kind: each comment individually resembles a WHY, but together
+      they re-narrate the author's reasoning session — density is part of the rule, not a
+      style preference on top of it.
     solution: >
       Before writing a comment, ask whether the code already says it; if so, don't comment.
-      Keep the ones that record a non-obvious WHY, in one line. Route decision/diagnosis
-      narrative to the PR description or an inline PR comment (see u-document-divergent-decisions),
-      not the file.
+      Keep the ones that record a non-obvious WHY, compressed to one line (the "safe
+      because / instead of / rather than" tail of a justification is the part to cut).
+      Route decision/diagnosis narrative to the PR description or an inline PR comment
+      (see u-document-divergent-decisions), not the file. Reviewers: flag files whose
+      diff visibly raises comment density above the surrounding code even when each
+      comment defends itself — the finding is the density, cited once per file.
 
   - id: u-routes-english-names
     topic: Naming
