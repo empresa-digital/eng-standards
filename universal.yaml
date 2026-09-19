@@ -285,13 +285,15 @@ rules:
     sources: ["user-2026-07"]
     principle: >
       A comment earns its place only by capturing intent the code cannot express — a
-      non-obvious WHY, in ONE line. Default to no comment: in a typical diff most hunks
-      add zero comments, and new code matches the comment density of the surrounding
-      file, not the density the author needed while reasoning. Never restate what the
-      next line already says, explain a primitive any reader of the language/tool knows,
-      paste the prompt/chat rationale that led to the code inline, or write a multi-line
-      essay defending the change to its reviewer — justification aimed at whoever
-      approves the diff belongs in a PR comment, not welded into the source.
+      non-obvious WHY, strongly recommended to fit in one or two lines (no rigid cap,
+      but past two lines the burden of proof is on the comment). Default to no comment:
+      in a typical diff most hunks add zero comments, and new code matches the comment
+      density of the surrounding file, not the density the author needed while
+      reasoning. Never restate what the next line already says, explain a primitive any
+      reader of the language/tool knows, paste the prompt/chat rationale that led to the
+      code inline, or write a multi-line essay defending the change to its reviewer —
+      justification aimed at whoever approves the diff belongs in a PR comment, not
+      welded into the source.
     wrong:
       description: >
         Comments that paraphrase the adjacent code, narrate a self-evident primitive,
@@ -338,11 +340,11 @@ rules:
       style preference on top of it.
     solution: >
       Before writing a comment, ask whether the code already says it; if so, don't comment.
-      Keep the ones that record a non-obvious WHY, compressed to one line (the "safe
-      because / instead of / rather than" tail of a justification is the part to cut).
-      Route decision/diagnosis narrative to the PR description or an inline PR comment
-      (see u-document-divergent-decisions), not the file. Reviewers: flag files whose
-      diff visibly raises comment density above the surrounding code even when each
+      Keep the ones that record a non-obvious WHY, compressed to one or two lines (the
+      "safe because / instead of / rather than" tail of a justification is the part to
+      cut). Route decision/diagnosis narrative to the PR description or an inline PR
+      comment (see u-document-divergent-decisions), not the file. Reviewers: flag files
+      whose diff visibly raises comment density above the surrounding code even when each
       comment defends itself — the finding is the density, cited once per file.
 
   - id: u-routes-english-names
