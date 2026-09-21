@@ -301,6 +301,7 @@ rules:
     severity: blocker
     lintable: false
     sources: [be-031]
+    ideals: [data-representation]
     principle: >
       Convert to domain types or abstracted types inside the adapter/controller.
       Type conversion in the middle of business logic signals the
@@ -322,6 +323,36 @@ rules:
         var dto struct{ StartTime time.Time } // time.Time
         err = json.Unmarshal(body, &dto)
     reason: Boundaries own conversion; the rest of the code works with high-level/useful types.
+
+  - id: go-int-over-sized-and-unsigned
+    topic: Types
+    severity: nit
+    lintable: false
+    sources: ["user-2026-09"]
+    ideals: [data-representation]
+    principle: >
+      In Go, declare integers as plain `int` unless an external contract forces a
+      sized or unsigned type (binary wire formats, syscalls, cross-language APIs,
+      stdlib signatures like `time.Unix`). `unsigned`/sized integers rarely pay for
+      the complexity they add: `uint` does not actually prevent invalid values (a
+      negative input silently wraps into a huge positive instead of failing), and
+      every mixed-type expression forces conversions that spread through the code.
+      Reject invalid ranges early at the entry contract; don't try to encode them
+      in the integer's type.
+    wrong:
+      description: uint used "so the value can't be negative"; callers now cast and negatives wrap.
+      code: |
+        type Payment struct{ Installments uint32 }
+        n := int(p.Installments) * price          // cast at every use site
+        // json.Unmarshal of -1 → error surfaces far from the boundary
+    right:
+      description: plain int, with the invalid range rejected at the boundary.
+      code: |
+        type Payment struct{ Installments int }
+        if dto.Installments < 1 {
+            return domain.ErrInvalidInstallments   // clear error, at the entry point
+        }
+    reason: Confirmed preference (2026-09) superseding older advice to use unsigned for non-negative fields.
 
   - id: go-validate-method-on-entity
     topic: Validation
