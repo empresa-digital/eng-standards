@@ -126,27 +126,6 @@ rules:
         })
     reason: kbuilder is the company standard for listings — WhereIf, pagination, JOIN tag support.
 
-  - id: ed-parse-json-with-kparse
-    topic: Validation
-    severity: nit
-    lintable: false
-    sources: [be-030]
-    principle: Parse and validate request bodies with `kparse.ParseJSON` + validate tags.
-    wrong:
-      code: |
-        if err := json.Unmarshal(c.Body(), &payload); err != nil { return err }
-        if payload.Name == "" { return core.BadRequestErr("name is required", nil) }
-    right:
-      code: |
-        var payload struct {
-          Name string `json:"name" validate:"required,len<50"`
-          Age  int    `json:"age" validate:"required,>18"`
-        }
-        if err := kparse.ParseJSON(c.Body(), &payload); err != nil {
-          return core.BadRequestErr("invalid payload", map[string]any{"error": err})
-        }
-    reason: kparse handles required-field and other validations via tags, removing manual checks.
-
   - id: ed-insert-with-ksql-not-raw-sql
     topic: Repository
     severity: nit
