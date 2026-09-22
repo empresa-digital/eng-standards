@@ -32,9 +32,12 @@ concurrency:
 
 jobs:
   gate:
-    # Work-in-progress PRs get no review: skip GitHub-native drafts here, and
-    # WIP/Draft-titled PRs in the step below. For `edited` events, only continue
-    # when the TITLE changed — body edits must not re-run a full review.
+    # Work-in-progress PRs get no review: skip GitHub-native drafts here and
+    # WIP/Draft-prefixed titles in the step below. `edited` fires on BODY edits
+    # too, so this guard only lets through edits that changed the title;
+    # combined with the OLD_TITLE check below, a re-review happens exactly on
+    # the WIP→ready title transition — body edits and cosmetic renames never
+    # burn a review.
     if: >-
       github.event.pull_request.draft == false &&
       (github.event.action != 'edited' || github.event.changes.title.from != null)
@@ -42,14 +45,17 @@ jobs:
     outputs:
       go: ${{ steps.title.outputs.go }}
     steps:
-      - name: Skip WIP/Draft titles (case-insensitive, word-boundary)
+      - name: Skip WIP/Draft-prefixed titles (case-insensitive)
         id: title
         env:
           TITLE: ${{ github.event.pull_request.title }}
           OLD_TITLE: ${{ github.event.changes.title.from }}
           ACTION: ${{ github.event.action }}
         run: |
-          wip() { printf '%s' "$1" | grep -qiE '(^|[^[:alnum:]])(wip|draft)([^[:alnum:]]|$)'; }
+          # Prefix-only on purpose: "WIP:", "Draft:", "[WIP]", "[Draft]" (any
+          # case). A mid-title mention ("Fix wipe bug", "draft-saving feature")
+          # is not a WIP marker and still gets reviewed.
+          wip() { printf '%s' "$1" | grep -qiE '^[[:space:]]*((wip|draft):|\[(wip|draft)\])'; }
           if wip "$TITLE"; then
             echo "go=false" >> "$GITHUB_OUTPUT"
             echo "Title marks the PR as WIP/Draft — review deferred until it's ready."
