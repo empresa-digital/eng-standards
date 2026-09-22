@@ -342,3 +342,45 @@ rules:
       (see ed-list-funcs-use-kbuilder-and-pagination). For a query with no
       runtime-varying parts it is "a cannon to kill a fly" — plain SQL is shorter and
       reads more directly. This complements the list-funcs rule, it does not contradict it.
+
+  - id: ed-handler-response-explicit-dto
+    topic: Boundaries
+    severity: nit
+    lintable: true
+    sources: ["agent-improvements#31"]
+    principle: >
+      Handlers never pass a domain entity (or a slice of entities) straight to
+      `c.JSON`. Build the response explicitly in the handler — a `map[string]any`
+      (or a slice of maps) naming every field the endpoint returns — even when the
+      entity's json tags would serialize to the same shape today.
+    wrong:
+      description: >
+        Serialize the domain entity directly; the API contract is implicit in
+        whatever the entity happens to contain.
+      code: |
+        templates, err := d.repo.ListDiligenceTemplates(ctx, filter)
+        // ...
+        return c.JSON(templates)
+    right:
+      description: Translate to an explicit response shape at the handler.
+      code: |
+        responseDto := []map[string]any{}
+        for _, t := range templates {
+            responseDto = append(responseDto, map[string]any{
+                "id":       t.ID,
+                "name":     t.Name,
+                "sections": t.Sections,
+            })
+        }
+        return c.JSON(responseDto)
+    reason: >
+      With `c.JSON(entity)` the API contract is whatever the entity happens to be:
+      renaming an entity field or adding a sensitive attribute silently changes or
+      leaks through every endpoint that serializes it. The explicit map pins the
+      contract in the handler, so entity churn cannot alter a response unnoticed —
+      the same protection the inbound side already gets from its inline payload DTOs.
+      This tightens `u-translate-at-external-boundaries` for this org: translation is
+      mandatory even when nothing sensitive leaks today. The existing controllers
+      still contain many direct `c.JSON(entity)` calls; that legacy does NOT bless
+      the pattern — on this specific point this rule overrides
+      `u-follow-local-convention`, and new or modified handlers must translate.
