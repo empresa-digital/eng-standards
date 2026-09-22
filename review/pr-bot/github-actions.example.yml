@@ -21,7 +21,9 @@ name: eng-standards pre-review
 
 on:
   pull_request:
-    types: [opened, reopened, synchronize]
+    # ready_for_review: review a native draft when it's marked ready.
+    # edited: re-check when the title changes (WIP/Draft marker removed).
+    types: [opened, reopened, synchronize, ready_for_review, edited]
 
 concurrency:
   # One review in flight per PR; a new push cancels the older run.
@@ -29,7 +31,38 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  gate:
+    # Work-in-progress PRs get no review: skip GitHub-native drafts here, and
+    # WIP/Draft-titled PRs in the step below. For `edited` events, only continue
+    # when the TITLE changed — body edits must not re-run a full review.
+    if: >-
+      github.event.pull_request.draft == false &&
+      (github.event.action != 'edited' || github.event.changes.title.from != null)
+    runs-on: ubuntu-latest
+    outputs:
+      go: ${{ steps.title.outputs.go }}
+    steps:
+      - name: Skip WIP/Draft titles (case-insensitive, word-boundary)
+        id: title
+        env:
+          TITLE: ${{ github.event.pull_request.title }}
+          OLD_TITLE: ${{ github.event.changes.title.from }}
+          ACTION: ${{ github.event.action }}
+        run: |
+          wip() { printf '%s' "$1" | grep -qiE '(^|[^[:alnum:]])(wip|draft)([^[:alnum:]]|$)'; }
+          if wip "$TITLE"; then
+            echo "go=false" >> "$GITHUB_OUTPUT"
+            echo "Title marks the PR as WIP/Draft — review deferred until it's ready."
+          elif [ "$ACTION" = edited ] && ! wip "$OLD_TITLE"; then
+            # Cosmetic rename (was already reviewable): don't burn a re-review.
+            echo "go=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "go=true" >> "$GITHUB_OUTPUT"
+          fi
+
   pre-review:
+    needs: gate
+    if: needs.gate.outputs.go == 'true'
     runs-on: ubuntu-latest
     permissions:
       contents: read
