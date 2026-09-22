@@ -352,7 +352,10 @@ rules:
         if dto.Installments < 1 {
             return domain.ErrInvalidInstallments   // clear error, at the entry point
         }
-    reason: Confirmed preference (2026-09) superseding older advice to use unsigned for non-negative fields.
+    reason: >
+      An opinionated preference: within a single codebase the conversion tax of
+      sized/unsigned integers outweighs the range or non-negativity they buy, so
+      plain `int` is the default and a sized type needs an external contract.
 
   - id: go-validate-method-on-entity
     topic: Validation
