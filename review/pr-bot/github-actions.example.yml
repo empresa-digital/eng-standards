@@ -26,9 +26,13 @@ on:
     types: [opened, reopened, synchronize, ready_for_review, edited]
 
 concurrency:
-  # One review in flight per PR; a new push cancels the older run.
+  # One review in flight per PR; a new push cancels the older run. `edited`
+  # events must NOT cancel: the cancellation happens when the new run is
+  # created — before the gate decides to skip — so a body edit or cosmetic
+  # rename during a review would kill it and never restart it. Edited runs
+  # queue behind the in-flight review instead.
   group: eng-review-${{ github.event.pull_request.number }}
-  cancel-in-progress: true
+  cancel-in-progress: ${{ github.event.action != 'edited' }}
 
 jobs:
   gate:
