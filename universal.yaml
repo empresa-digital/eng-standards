@@ -228,6 +228,46 @@ rules:
       where it happens — and verify the promise/error contract of any third-party call in
       the installed source before assuming it always succeeds.
 
+  - id: u-never-fail-silently
+    topic: Error handling
+    severity: blocker
+    lintable: false
+    sources: ["vini 2026-10-05 #4771 (kortex fail-open review miss)"]
+    principle: >
+      When a component fails and the system continues anyway (a fallback path, a skipped
+      optional stage, a degraded mode), the degradation must be VISIBLE to whoever relies
+      on the skipped work — not only to an operator reading logs. Logging alone is not
+      visibility: surface the failure in the output itself (an error field, a notice
+      appended to the delivered message, an alert) so the consumer knows the result was
+      produced without the failed component. "Fail open" is acceptable as a continuity
+      strategy only when it fails LOUDLY.
+    wrong:
+      description: A review/validation stage that, on error, delivers the unreviewed result and only writes a log line — consumers believe the system is healthy while the safeguard has been off the whole time.
+      code: |
+        reviewed, err := reviewer.Review(ctx, draft)
+        if err != nil {
+            log.Warn("reviewer failed, delivering original", "err", err)
+            return draft // caller and end user cannot tell review never ran
+        }
+        return reviewed
+    right:
+      description: Deliver the fallback result WITH an explicit degradation notice attached, so the output itself reports that the safeguard did not run.
+      code: |
+        reviewed, err := reviewer.Review(ctx, draft)
+        if err != nil {
+            log.Warn("reviewer failed, delivering original", "err", err)
+            return draft + "\n\n[notice: review stage failed (" + err.Error() + "); this output was delivered unreviewed]"
+        }
+        return reviewed
+    reason: >
+      Silent fallbacks turn one outage into two problems: the original failure, and a
+      trust failure — every consumer kept believing the full pipeline ran. A real case: a
+      safety-review stage failed on 100% of outputs for hours and everything shipped
+      unreviewed with only log lines as witness. If the failure had been attached to the
+      delivered output, the first message would have exposed it. The turn's work is also
+      preserved: deliver the result, enriched with the failure report, instead of hiding
+      either.
+
   - id: u-no-dead-scaffolding
     topic: Cleanliness
     severity: nit
