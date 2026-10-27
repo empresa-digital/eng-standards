@@ -37,6 +37,8 @@ The target repo is different from the sprint directory. Before Phase 0, ask the 
 
 Agents receive: static pack + relevant sprint excerpt. Evaluators: the task being voted on + its direct dependencies + the enclosing section/subsection titles (the surrounding context a task inherits from its place in the hierarchy — so a ticket doesn't have to repeat it). This excerpt is embedded **verbatim in the evaluator's spawn prompt** — do NOT hand an evaluator the sprint file path with a "read only section N" instruction; scoped-by-pointer leaks (the evaluator reads the whole file and votes out-of-scope tasks). Leader/Reviewer: the current sprint file read from disk.
 
+**Embed verbatim, never a compressed summary — for every critic, not just Evaluators.** Whenever a critic (Evaluator, Reviewer, Clarity-Editor) is given task text, hand it the text **verbatim**. Never substitute a compressed one-line-per-task summary: a summary manufactures phantom FORM/structure findings the same way a scoped-by-pointer leak manufactures out-of-scope votes — the critic critiques your paraphrase, not the sprint.
+
 ## Project memory (persistent, per target repo)
 
 Distinct from the static pack (regenerable, temp-dir): a **persistent** per-repo memory that gives the cluster head-start context so it stops re-making the same misses across sprints. Unlike the static pack, it is NEVER auto-regenerated from scratch — it accumulates.
