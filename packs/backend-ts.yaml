@@ -575,6 +575,36 @@ rules:
       Consistent casing and a non-redundant name make code scannable; the class qualifier
       (`userService.getUser`) already carries the context. TS-concrete form of
       u-self-explanatory-names.
+
+  - id: ts-prefer-container-access
+    topic: Readability
+    severity: nit
+    lintable: false
+    sources: [vini-style]
+    principle: >
+      Don't destructure a single value into many bare locals when the container name
+      carries domain meaning. Read through the container so each use keeps its context
+      (userActions.actions ≫ a bare actions). Destructure only when it cuts real
+      repetition WITHOUT losing context — not as a reflex.
+    wrong:
+      description: >
+        actions is torn off userActions at the top, then used far below where nothing
+        tells the reader whose actions these are.
+      code: |
+        const { actions } = userActions
+        // ...many lines later...
+        processActions(actions)
+    right:
+      description: The container qualifier rides along to the call site.
+      code: |
+        processActions(userActions.actions)
+    reason: >
+      A bare actions drops the userActions qualifier that says whose actions these are —
+      worst when the field is read far from where it was introduced. Reading through the
+      container keeps the domain context at every call site. Destructuring is fine when it
+      removes genuine repetition (a field used several times in a tight block) without
+      dropping meaning; avoid it by default, allow it when it clearly helps.
+
   - id: ts-parametrized-test-setup
     topic: Testing
     severity: blocker
