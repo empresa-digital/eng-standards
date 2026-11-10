@@ -55,7 +55,10 @@ rules:
     sources: [be-041, te-004, "agent-improvements#12,31,33"]
     principle: >
       Each concept has exactly one source of truth. Do not fragment a model or
-      duplicate the same fields across tables/types.
+      duplicate the same fields across tables/types. This is about models and data
+      (tables, types, stored state); a literal value written in two places (a host name in
+      two manifests, a constant in two files) is handled by
+      u-keep-incidental-duplication-inline, not by this rule.
     reason: >
       When two tables or types hold the same concept, they drift and every write must
       keep them in sync. Decide which one owns each fact; reference it from the other.
@@ -68,13 +71,15 @@ rules:
     topic: Reuse
     severity: nit
     lintable: false
-    sources: ["improvements#26"]
+    sources: ["improvements#26", "improvements#37"]
     ideals: [block-hasty-new-abstractions]
     principle: >
-      Extract a shared variable or helper only when the call sites express the SAME concept
-      and are meant to change together. When two sites merely look alike right now but
-      change for independent reasons — two SQL queries, two translation strings, two ad-hoc
-      DTOs — keep them inline so one can evolve without silently dragging the other.
+      Write Everything at most Twice: two copies of the same thing are fine; extract on the
+      THIRD copy, not before. Extract a shared variable, helper, ConfigMap or lib only when
+      there are three or more sites AND they express the SAME concept and are meant to
+      change together. When sites merely look alike right now but change for independent
+      reasons — two SQL queries, two translation strings, two ad-hoc DTOs — keep them inline
+      even past three, so one can evolve without silently dragging the other.
     wrong:
       description: Hoist a fragment shared by two queries that will diverge independently.
       code: |
@@ -92,8 +97,11 @@ rules:
       other. This is the deliberate counterweight to u-reuse-before-adding — reuse a
       genuinely shared concept, but don't manufacture a shared one out of surface similarity.
     solution: >
-      Before extracting, ask whether the sites change for the same reason. Same concept →
-      share it. Same shape by coincidence (queries, translations, one-off DTOs) → inline it.
+      Before extracting, count the sites and ask whether they change for the same reason.
+      Two sites → inline, whatever the reason. Three or more AND same concept → share it.
+      Same shape by coincidence (queries, translations, one-off DTOs) → inline it.
+      Reviewers: do not flag a value or snippet that appears exactly twice as a
+      duplication finding.
 
   - id: u-early-return-over-else
     topic: Simplicity
