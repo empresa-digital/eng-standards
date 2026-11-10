@@ -195,6 +195,54 @@ rules:
       The boundary that matters is external, not every layer. Owning the DB and shaping
       it to the entities (not the reverse) is a large simplifier.
 
+  - id: u-no-cross-boundary-format-coupling
+    topic: Boundaries
+    severity: blocker
+    lintable: false
+    sources: ["improvements-2026-11"]
+    principle: >
+      A component must not hard-code knowledge of another component's internal text format
+      across a boundary — neither reproducing that component's serialization schema (format
+      name, field names, file-suffix/path convention) as string literals, nor shaping its
+      own output prose so a downstream consumer's loose string matching keeps working. The
+      component that OWNS the format produces or parses it; everything else passes the value
+      opaquely and matches on a type or stable code, never on the text.
+    wrong:
+      description: >
+        A reporting layer bakes the storage owner's on-disk schema (field name, format tag,
+        file suffix) into literals, and an inner layer words its error so a downstream
+        substring classifier still recognizes it.
+      code: |
+        // report layer — reproduces the store's serialization schema by hand
+        name := id + ".report.v2.json"
+        payload := map[string]any{"report_body": body} // field name owned by the store
+
+        // inner layer — prose shaped to survive consumer's strings.Contains(err, "deadline")
+        return fmt.Errorf("deadline exceeded while fetching")
+    right:
+      description: >
+        The schema's owner renders the artifact and names it; the consumer matches a typed
+        or sentinel error, not its wording.
+      code: |
+        blob, name := reportStore.Render(report) // store owns schema, name, suffix
+
+        // inner layer returns a typed error; the consumer matches the type
+        return fmt.Errorf("fetch report: %w", context.DeadlineExceeded)
+    reason: >
+      Textual coupling across a boundary is invisible to an import linter and the compiler,
+      so nothing breaks when the owner renames a field, bumps a format tag, changes a suffix,
+      or rewords an error — every baked literal or prose-matched string silently rots, and
+      the failure surfaces far from the change. It is the same drift u-one-source-of-truth
+      warns about, applied to a format whose single owner is a different component; see also
+      go-hex-no-delivery-coupling-in-domain-types (a type carrying a delivery detail). An
+      import linter cannot catch it, so the reviewer owns this.
+    solution: >
+      Let the owning component produce the serialized artifact (returning an opaque already-
+      rendered value plus its name) and parse inputs in that format; pass it across the
+      boundary without the other side re-deriving the schema. For error/status dispatch,
+      expose a typed or sentinel error and have consumers match on the type or a stable code,
+      never on message prose.
+
   - id: u-invariants-in-business-layer
     topic: Architecture
     severity: blocker
@@ -425,7 +473,12 @@ rules:
       cut). Route decision/diagnosis narrative to the PR description or an inline PR
       comment (see u-document-divergent-decisions), not the file. Reviewers: flag files
       whose diff visibly raises comment density above the surrounding code even when each
-      comment defends itself — the finding is the density, cited once per file.
+      comment defends itself — the finding is the density, cited once per file. Carve-out
+      for a repo whose established convention is deliberately high comment density: a
+      genuine WHY comment that merely matches that local density is NOT a nit — don't flag
+      it (u-follow-local-convention wins on density there). Two limits still apply at any
+      density and are always flaggable: never state the same contract twice, and never
+      address the reviewer/PR inside a doc comment.
 
   - id: u-routes-english-names
     topic: Naming
@@ -469,7 +522,9 @@ rules:
     principle: >
       Write developer-facing diagnostics — error and exception messages, log lines,
       panics — in English, even when the product UI is localized. Only copy shown
-      verbatim to end users is translated, through the i18n layer.
+      verbatim to end users is translated, through the i18n layer. This is the default;
+      it defers to a repo that has deliberately standardized its diagnostics on one
+      non-English house language (see the carve-out in the solution).
     wrong:
       description: Error/log text written in the team's native language.
       code: |
@@ -491,6 +546,15 @@ rules:
       Keep Error(), log, and panic strings in English. For text shown directly to end
       users, surface a code or key at the throw site and translate it in the
       i18n/presentation layer instead of hand-writing localized strings in code.
+      Carve-out: when a repo has consciously standardized its developer-facing
+      diagnostics on a single non-English house language — declared in AGENTS.md or an
+      orgs/<company>.yaml override, or visibly pervasive and consistent across the
+      codebase — a new diagnostic that merely conforms to that convention is NOT a
+      violation; do not flag it. The language of diagnostics is a repo-wide decision
+      recorded once (u-follow-local-convention, u-document-divergent-decisions), not
+      re-litigated per diff — flagging every conforming line is recurring noise that can
+      never be resolved. English stays the default when no such convention is declared,
+      and a repo with no single consistent convention (mixed languages) is still flagged.
 
   - id: u-document-copied-source
     topic: Provenance
