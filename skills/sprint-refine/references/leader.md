@@ -64,12 +64,14 @@ New report-generation feature:
     - … sub-items with details …
 ```
 
-## FIX: annotations
+## FIX:, ASK: and OBS: annotations
 
 The input sprint may contain `FIX:` annotations. In Phase 1, list each one in your questions output. In Phase 2:
 - Apply unambiguous `FIX:` directives directly as edits.
 - Remove the `FIX:` annotation once resolved, folding the fix into the corrected task text.
 - Leave unresolved `FIX:` annotations for the Manager to add to the `## Open Questions` section.
+
+It may also contain `ASK:` (a user question/investigation request that is not an error — answered by the Manager/Verifier; you fold the resulting answer or findings into the task text) and `OBS:` (context-only information — fold the fact into the task text when relevant). Remove each annotation once consumed; none of the three may remain in the published sprint.
 
 ## Design-decision log (binding across rounds)
 

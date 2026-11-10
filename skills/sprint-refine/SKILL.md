@@ -113,6 +113,15 @@ If the harness supports it, run long work in the background and yield to keep th
 - If acting on a `FIX:` raises a new question or an open decision (it's ambiguous, or resolving it needs the user's input), add THAT question to the Phase-1 question batch.
 - Queue unambiguous `FIX:` directives as Leader edits for Phase 2.
 
+**ASK: annotations.** `ASK:` marks a question or request from the user that is NOT an error in the current sprint text — e.g. "investigate this bug before refining", "how should we do X?". Handling:
+- An `ASK:` requesting an investigation about the codebase/system → route to the Verifier (or a dedicated investigator subagent) BEFORE refining the task it annotates; its findings feed the task text.
+- An `ASK:` raising a design question → answer it when the answer is derivable from code/docs; otherwise add it to the Phase-1 question batch / `## Open Questions` for the user.
+- The answer must be made visible to the user (inline reply under the task during the draft stage, or in `## Open Questions`), and the `ASK:` is removed once addressed.
+
+**OBS: annotations.** `OBS:` is information sharing only — context the user wants the refinement to know (no action required by itself). Read it, let it inform the affected task (folding the fact into the task text when relevant), then remove the annotation.
+
+**Publication invariant:** no `FIX:`/`ASK:`/`OBS:` annotation may remain in the published sprint.
+
 ### Phase 2 — Editing + review
 
 1. **Read the sprint's `## Design decisions` log first, and treat it as binding.** Before editing, the Leader reads the sprint's design-decision / sign-off log (see `references/sprint-format.md`) and treats every entry as a **locked constraint** — not informative context — so a later round never re-decides or silently undoes a choice the user already locked in an earlier round. As new design decisions and recurring-fix candidates surface this round, the Leader **appends** them to that log (never rewrites past entries).

@@ -72,6 +72,19 @@ the sprint.
 You might also want to include `FIX:` instructions anywhere in the sprint body asking a task to be
 moved up or down the priority list, or moved to the Stretch or Backlog section.
 
+Besides `FIX:` there are two other keywords you can use anywhere in the sprint body:
+
+- `ASK:` — for asking questions or requesting things that are not errors in the current sprint
+  format, e.g. asking for a bug to be investigated before the refinement starts, or raising a
+  design question that should be discussed/answered as part of preparing the task.
+- `OBS:` — plain information sharing: context that may be useful for the refinement but demands
+  no action by itself (e.g. "the k8s files were already moved to folder X").
+
+None of these annotations (`FIX:`, `ASK:`, `OBS:`) should remain in the published sprint: they are
+consumed by the refinement — `FIX:` folded into the corrected text, `ASK:` answered (inline for the
+user to read, or as an Open Question), `OBS:` absorbed into the task text when relevant and then
+removed.
+
 You may then call the same skill again passing the same sprint file (your review edits get their
 own checkpoint commit); it will read all the answers to the open questions and all the `FIX`
 comments and act on them updating tasks accordingly following the same vote and breakdown and
