@@ -116,7 +116,8 @@ If the harness supports it, run long work in the background and yield to keep th
 **ASK: annotations.** `ASK:` marks a question or request from the user that is NOT an error in the current sprint text — e.g. "investigate this bug before refining", "how should we do X?". Handling:
 - An `ASK:` requesting an investigation about the codebase/system → route to the Verifier (or a dedicated investigator subagent) BEFORE refining the task it annotates; its findings feed the task text.
 - An `ASK:` raising a design question → answer it when the answer is derivable from code/docs; otherwise add it to the Phase-1 question batch / `## Open Questions` for the user.
-- The answer must be made visible to the user (inline reply under the task during the draft stage, or in `## Open Questions`), and the `ASK:` is removed once addressed.
+- **The answer goes to the user through the Manager (chat reply), never into the task text.** The sprint receives only the *consequence* of the answer: the task line rewritten, a sub-item added or deleted. A decision the user may still overturn goes to `## Open Questions` with the default the task assumes. The `ASK:` line is removed once addressed.
+- Why: a sprint condenses tasks with minimum noise. Agents answering an `ASK:` tend to write the answer where the question was ("checked: X does not exist, item removed", "accepted, no users yet", `#1234`, dates, who decided) — that is conversation, not a task, and it fails the Clarity-Editor's cold-reader test.
 
 **OBS: annotations.** `OBS:` is information sharing only — context the user wants the refinement to know (no action required by itself). Read it, let it inform the affected task (folding the fact into the task text when relevant), then remove the annotation.
 
