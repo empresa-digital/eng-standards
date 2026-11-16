@@ -71,7 +71,7 @@ The input sprint may contain `FIX:` annotations. In Phase 1, list each one in yo
 - Remove the `FIX:` annotation once resolved, folding the fix into the corrected task text.
 - Leave unresolved `FIX:` annotations for the Manager to add to the `## Open Questions` section.
 
-It may also contain `ASK:` (a user question/investigation request that is not an error — answered by the Manager/Verifier; you fold the resulting answer or findings into the task text) and `OBS:` (context-only information — fold the fact into the task text when relevant). Remove each annotation once consumed; none of the three may remain in the published sprint.
+It may also contain `ASK:` (a user question/investigation request that is not an error — answered by the Manager/Verifier to the USER in chat; you fold only the resulting *consequence* into the task text — the rewritten line, a new or deleted sub-item — never the answer itself, what was checked, who decided or when) and `OBS:` (context-only information — fold the fact into the task text when relevant). Remove each annotation once consumed; none of the three may remain in the published sprint.
 
 ## Design-decision log (binding across rounds)
 
