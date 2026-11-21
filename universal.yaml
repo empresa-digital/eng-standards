@@ -509,9 +509,7 @@ rules:
     principle: >
       Write developer-facing diagnostics — error and exception messages, log lines,
       panics — in English, even when the product UI is localized. Only copy shown
-      verbatim to end users is translated, through the i18n layer. This is the default;
-      it defers to a repo that has deliberately standardized its diagnostics on one
-      non-English house language (see the carve-out in the solution).
+      verbatim to end users is translated, through the i18n layer.
     wrong:
       description: Error/log text written in the team's native language.
       code: |
@@ -533,15 +531,6 @@ rules:
       Keep Error(), log, and panic strings in English. For text shown directly to end
       users, surface a code or key at the throw site and translate it in the
       i18n/presentation layer instead of hand-writing localized strings in code.
-      Carve-out: when a repo has consciously standardized its developer-facing
-      diagnostics on a single non-English house language — declared in AGENTS.md or an
-      orgs/<company>.yaml override, or visibly pervasive and consistent across the
-      codebase — a new diagnostic that merely conforms to that convention is NOT a
-      violation; do not flag it. The language of diagnostics is a repo-wide decision
-      recorded once (u-follow-local-convention, u-document-divergent-decisions), not
-      re-litigated per diff — flagging every conforming line is recurring noise that can
-      never be resolved. English stays the default when no such convention is declared,
-      and a repo with no single consistent convention (mixed languages) is still flagged.
 
   - id: u-document-copied-source
     topic: Provenance
