@@ -465,12 +465,7 @@ rules:
       cut). Route decision/diagnosis narrative to the PR description or an inline PR
       comment (see u-document-divergent-decisions), not the file. Reviewers: flag files
       whose diff visibly raises comment density above the surrounding code even when each
-      comment defends itself — the finding is the density, cited once per file. Carve-out
-      for a repo whose established convention is deliberately high comment density: a
-      genuine WHY comment that merely matches that local density is NOT a nit — don't flag
-      it (u-follow-local-convention wins on density there). Two limits still apply at any
-      density and are always flaggable: never state the same contract twice, and never
-      address the reviewer/PR inside a doc comment.
+      comment defends itself — the finding is the density, cited once per file.
 
   - id: u-routes-english-names
     topic: Naming
