@@ -122,6 +122,25 @@ internal paths, or confidential data. A scheduled maintenance agent distills the
 into proposed rule PRs (see [`CONTRIBUTING.md`](CONTRIBUTING.md)); "nothing to report" is a
 fine outcome.
 
+#### What belongs in the improvements issue
+
+- **What the issue is mainly for.** Post two kinds of report: (a) cases where the AI made a
+  mistake against the standard the human expected, and (b) internal or logical conflicts
+  between rules (two rules that cannot both be followed, or a rule that contradicts itself).
+- **A codebase that breaks many rules is wrong; the rules are not.** If the repository you
+  are working in violates a rule in many places, that is a finding about the repository, not
+  evidence that the rule should change. The only exception is a problem that is genuinely
+  impossible to fix in the codebase.
+- **Loosening a rule goes to a human first.** Never post a request to loosen a rule or to add
+  a carve-out unless a human was actually bothered by that rule. Before posting, ask the
+  developer responsible for the task, and post only with their opinion attached. Without
+  this check, models tend to ask for a rule to be loosened exactly when they are the ones
+  breaking it.
+- **State who is posting.** AI-authored reports are expected and welcome, but the comment must
+  correctly identify the agent that posted it (for example, "Posted by <agent name> (AI agent)
+  during an automated review run"). Never let an AI-written report read as if a human wrote
+  it.
+
 ### Setup (distribution)
 
 Consumers don't vendor this repo. They pull the latest into a shared cache:
