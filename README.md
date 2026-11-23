@@ -81,7 +81,7 @@ Agents load rules **selectively** by the file types in a diff:
 - `.go` change → `universal` + `packs/backend-go` + `packs/testing` + active org
 - `.ts` / `.tsx` change → `universal` + `packs/backend-ts` + `packs/testing` + active org
 - `.vue` change → `universal` + `packs/frontend-vue` + `packs/testing` + active org
-- shell script change (`.sh`/`.bash`, or an extensionless file with a bash/sh shebang) → `universal` + `packs/shell`
+- bash script change (`.sh`/`.bash`, or an extensionless file with a bash shebang) → `universal` + `packs/shell`
 - operational `.md` change (skills, agent prompts, cron payloads, adapter docs, runbooks) → `universal` + `packs/operational_markdown`
 
 Some packs bind to a **workflow stage**, not a file type, so they load by review

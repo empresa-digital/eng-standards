@@ -1,10 +1,14 @@
 meta:
   pack: shell
   description: >
-    Rules for bash/POSIX-shell scripts (ops scripts, guards, CI helpers, shell tests).
-    These cover the shell's own failure semantics — errexit, pipefail, nounset, word
-    splitting, stderr suppression — which universal rules state only in the abstract.
-    Loaded for `.sh`/`.bash` changes and extensionless scripts with a shell shebang.
+    Rules for bash scripts (ops scripts, guards, CI helpers, shell tests). They cover
+    bash's own failure semantics — errexit, pipefail, nounset, word splitting, stderr
+    suppression — which universal rules state only in the abstract. Loaded for
+    `.sh`/`.bash` changes and extensionless scripts with a bash shebang. The examples use
+    bash syntax (`[[ ]]`, arrays); for a `#!/bin/sh` script apply the same principles
+    with POSIX syntax and `set -eu` (add `pipefail` only where that shell supports it).
+    The error-handling rules assume `sh-strict-mode` is in effect; where a script
+    deliberately omits an option, apply the rules that still hold for what it sets.
   language: en
 
 rules:
@@ -14,8 +18,10 @@ rules:
     lintable: true
     sources: ["improvements#37 (2026-11-20)", "improvements#31 (shell-pack cluster)"]
     principle: >
-      Start every bash script with `set -euo pipefail` (or state, in a comment next to
-      the `set` line, which option is deliberately omitted and why).
+      Start every executable bash script with `set -euo pipefail`, or state in a comment
+      next to the `set` line which option is deliberately omitted and why. Files that
+      are only `source`d (libraries, rc files) inherit the caller's options and are
+      exempt.
     wrong:
       description: No strict mode — a failed command is ignored and the script keeps going.
       code: |
@@ -44,19 +50,17 @@ rules:
     principle: >
       A pipeline's exit status must reflect the step that actually failed. Under
       `pipefail`, don't pipe a producer into an early-exiting consumer (`grep -q`,
-      `head`): the producer dies of SIGPIPE and the pipeline reports 141 even on a match.
-      Without `pipefail`, don't treat the last command's status as the pipeline's.
+      `head`): if the producer is still writing when the consumer exits, it dies of
+      SIGPIPE and the pipeline can report 141 even though the match succeeded. In a
+      script that deliberately runs without `pipefail`, don't read the pipeline's status
+      as the producer's — a failing producer is hidden behind the consumer's status.
     wrong:
       description: >
-        Under pipefail, `grep -q` exits on the first match, the producer gets SIGPIPE and
-        the `if` takes the "not found" branch. Without pipefail, a failing producer is
-        hidden behind the consumer's status.
+        Under pipefail, `grep -q` exits on the first match; whenever the producer still
+        has output pending it gets SIGPIPE and the `if` takes the "not found" branch.
       code: |
         set -o pipefail
         if list_units | grep -q "^my-service"; then restart; fi
-
-        # no pipefail: list_units failing still yields grep's "no match" -> guard passes
-        list_units 2>/dev/null | grep -c "failed" || true
     right:
       description: Capture the producer's output first, then match on it.
       code: |
@@ -65,9 +69,10 @@ rules:
         if grep -q "^my-service" <<<"$units"; then restart; fi
     reason: >
       Both shapes turn a real condition into its opposite: a present match reads as
-      absent (exit 141), or an unreadable data source reads as "nothing found". In guards
-      and monitors that means a check that silently passes. Capturing first separates
-      "the producer failed" from "the match failed".
+      absent (exit 141), or an unreadable data source reads as "nothing found". The 141
+      case depends on timing and output size, so it passes small test inputs and fails
+      on production-sized output. Capturing first separates "the producer failed" from
+      "the match failed".
 
   - id: sh-if-over-and-list
     topic: Error handling
@@ -75,8 +80,10 @@ rules:
     lintable: false
     sources: ["improvements#37 (2026-11-15)", "improvements#37 (2026-11-11)"]
     principle: >
-      Use `if ...; then ...; fi` for a conditional statement, not `test && action`, when
-      it can be the last command of a function, loop body, `{ }` group or script.
+      Never make `test && action` the last statement of a block — a function, a loop
+      body, a `{ }` group, or the script itself; write `if test; then action; fi`
+      there. Mid-block, `test && action` is fine because a later statement sets the
+      block's status (an explicit trailing `return 0` also makes it safe).
     wrong:
       description: >
         When the last `[[ ]]` is false, the `&&` list returns 1, so the loop/function
@@ -142,21 +149,28 @@ rules:
     sources: ["improvements#37 (2026-11-06)", "improvements#31"]
     principle: >
       Under `set -u`, expand a value that may legitimately be absent with an explicit
-      default: `${var-}` / `${map[$key]-}`, or test with `[[ -v map[$key] ]]`. When the
-      script must run on bash < 4.4 (e.g. macOS /bin/bash 3.2), expand a possibly-empty
-      array as `${arr[@]+"${arr[@]}"}`.
+      default: `${var-}` or `${map[$key]-}` (any bash; associative arrays need bash 4+),
+      or test presence with `[[ -v map[$key] ]]` (bash 4.3+). When the script must run
+      on bash < 4.4 (e.g. macOS /bin/bash 3.2), also expand a possibly-empty array as
+      `${arr[@]+"${arr[@]}"}`, because there `"${arr[@]}"` on an empty array aborts.
     wrong:
       description: A lookup of a missing associative-array key aborts with "unbound variable".
       code: |
         set -u
         declare -A seen=()
-        if [[ ${seen[$id]} == 1 ]]; then continue; fi
+        for id in "$@"; do
+          if [[ ${seen[$id]} == 1 ]]; then continue; fi
+          seen[$id]=1
+        done
     right:
       description: State that absence is expected with an empty default.
       code: |
         set -u
         declare -A seen=()
-        if [[ ${seen[$id]-} == 1 ]]; then continue; fi
+        for id in "$@"; do
+          if [[ ${seen[$id]-} == 1 ]]; then continue; fi
+          seen[$id]=1
+        done
     reason: >
       nounset exists to catch typos, not legitimately-absent values; tripping it on an
       empty map or first iteration crashes the script on exactly the input the happy-path
@@ -173,22 +187,22 @@ rules:
       and let any other failure surface; a guard or monitor whose data source is
       unreadable must report "unchecked/unknown", never "clean".
     wrong:
-      description: >
-        A permission failure and "no events" look identical; some tools also exit 0 and
-        only warn on stderr when they can't read the source.
+      description: An unreadable log and "no events" look identical, so the guard reports clean.
       code: |
-        count=$(journalctl -k --since "-1h" 2>/dev/null | grep -c "oom" || true)
+        count=$(grep -c "oom" "$log_file" 2>/dev/null || true)
         if [[ $count -eq 0 ]]; then echo "OK: no OOM events"; fi
     right:
-      description: Verify the source is readable, then count; report unknown otherwise.
+      description: Check the expected precondition, report unknown when it fails, then count.
       code: |
-        if ! out=$(journalctl -k --since "-1h" 2>&1) || grep -q "insufficient permissions" <<<"$out"; then
-          echo "SKIP: kernel log unreadable"; exit 2
+        if [[ ! -r $log_file ]]; then
+          echo "SKIP: cannot read $log_file"; exit 2
         fi
-        count=$(awk '/oom/ { n++ } END { print n + 0 }' <<<"$out")
+        count=$(awk '/oom/ { n++ } END { print n + 0 }' "$log_file")
     reason: >
       Blanket suppression hides the failures you didn't anticipate along with the one you
-      did, and in a guard it turns "could not check" into a passing check. Applies
+      did, and in a guard it turns "could not check" into a passing check. Watch for
+      tools that exit 0 and only warn on stderr when they can't read their source — check
+      their documented failure signal rather than trusting the exit code. Applies
       `u-never-fail-silently` to the shell idioms that most often violate it.
 
   - id: sh-quote-expansions
@@ -199,7 +213,7 @@ rules:
     principle: >
       Double-quote every variable and command-substitution expansion (`"$f"`,
       `"$(cmd)"`, `"${arr[@]}"`) unless word splitting is the intent, which then gets a
-      comment. Run `shellcheck` on every changed script.
+      comment. Run a shell linter (e.g. shellcheck) on every changed script.
     wrong:
       description: An unquoted path is split on spaces and glob-expanded.
       code: |
