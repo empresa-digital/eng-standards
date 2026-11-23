@@ -243,6 +243,93 @@ rules:
       expose a typed or sentinel error and have consumers match on the type or a stable code,
       never on message prose.
 
+  - id: u-per-handler-payload-translation
+    topic: Boundaries
+    severity: blocker
+    lintable: false
+    sources: ["review-pr617-2026-09-21"]
+    principle: >
+      Each inbound route handler owns the translation of its own request — reading path
+      params, query string and body and turning them into domain types. Never extract that
+      translation into a helper shared by two different routes, even when both routes parse
+      the same fields today. Legitimate reuse lives BELOW the translation, in the services
+      and domain functions the handlers call after parsing. This rule covers only INBOUND
+      request translation across route handlers; a helper that builds outbound HTTP client
+      headers or auth for calls to one external API is the same concept changing together
+      and is governed by u-keep-incidental-duplication-inline, which allows sharing it.
+    wrong:
+      description: >
+        Two handlers share a helper that parses params and body for both routes, so the
+        two routes' input contracts are welded together.
+      code: |
+        func resolveReportForIssuance(c *fiber.Ctx) (domain.ReportID, domain.IssueOptions, error) {
+          id, err := domain.ParseReportID(c.Params("id"))
+          if err != nil {
+            return "", domain.IssueOptions{}, err
+          }
+          var body issueReportRequest
+          if err := c.BodyParser(&body); err != nil {
+            return "", domain.IssueOptions{}, err
+          }
+          return id, domain.IssueOptions{Signer: body.Signer}, nil
+        }
+
+        func (h Handler) IssueReportPreview(c *fiber.Ctx) error {
+          id, opts, err := resolveReportForIssuance(c) // shared parsing
+          // ...
+        }
+
+        func (h Handler) IssueReport(c *fiber.Ctx) error {
+          id, opts, err := resolveReportForIssuance(c) // same helper, other route
+          // ...
+        }
+    right:
+      description: >
+        Each handler parses its own input inline, then both call the same service function.
+      code: |
+        func (h Handler) IssueReportPreview(c *fiber.Ctx) error {
+          id, err := domain.ParseReportID(c.Params("id"))
+          if err != nil {
+            return fiber.ErrBadRequest
+          }
+          var body issueReportPreviewRequest
+          if err := c.BodyParser(&body); err != nil {
+            return fiber.ErrBadRequest
+          }
+          preview, err := h.reports.Preview(c.Context(), id, domain.IssueOptions{Signer: body.Signer})
+          // ...
+        }
+
+        func (h Handler) IssueReport(c *fiber.Ctx) error {
+          id, err := domain.ParseReportID(c.Params("id"))
+          if err != nil {
+            return fiber.ErrBadRequest
+          }
+          var body issueReportRequest
+          if err := c.BodyParser(&body); err != nil {
+            return fiber.ErrBadRequest
+          }
+          report, err := h.reports.Issue(c.Context(), id, domain.IssueOptions{Signer: body.Signer})
+          // ...
+        }
+    reason: >
+      Two routes that parse the same fields today are equal only by coincidence: each route
+      is a separate public contract that evolves for its own reasons. When one route gains a
+      field, renames a param or changes validation, the shared helper either changes both
+      routes silently (a false coupling) or grows an `if` that asks which route called it,
+      which is the translation leaking back into its caller in a worse form. Keeping the
+      parsing per handler costs a few repeated lines and lets each contract be read and
+      changed top-to-bottom in one place, while the shared business logic stays shared in
+      the service layer.
+    solution: >
+      Reviewers: flag any helper that takes the framework request/context (for example
+      `*fiber.Ctx`) or a route's request DTO and is called from two or more different route
+      handlers to extract params, query or body. Ask for the parsing to be inlined into each
+      handler and for the shared part to move into a service or domain function that takes
+      already-typed arguments. Do not flag shared outbound client helpers (headers, auth,
+      base URL for one external provider): that case belongs to
+      u-keep-incidental-duplication-inline.
+
   - id: u-invariants-in-business-layer
     topic: Architecture
     severity: blocker
