@@ -1,0 +1,228 @@
+meta:
+  pack: shell
+  description: >
+    Rules for bash scripts (ops scripts, guards, CI helpers, shell tests). They cover
+    bash's own failure semantics — errexit, pipefail, nounset, word splitting, stderr
+    suppression — which universal rules state only in the abstract. Loaded for
+    `.sh`/`.bash` changes and extensionless scripts with a bash shebang. The examples use
+    bash syntax (`[[ ]]`, arrays); for a `#!/bin/sh` script apply the same principles
+    with POSIX syntax and `set -eu` (add `pipefail` only where that shell supports it).
+    The error-handling rules assume `sh-strict-mode` is in effect; where a script
+    deliberately omits an option, apply the rules that still hold for what it sets.
+  language: en
+
+rules:
+  - id: sh-strict-mode
+    topic: Error handling
+    severity: blocker
+    lintable: true
+    sources: ["improvements#37 (2026-11-20)", "improvements#31 (shell-pack cluster)"]
+    principle: >
+      Start every executable bash script with `set -euo pipefail`, or state in a comment
+      next to the `set` line which option is deliberately omitted and why. Files that
+      are only `source`d (libraries, rc files) inherit the caller's options and are
+      exempt.
+    wrong:
+      description: No strict mode — a failed command is ignored and the script keeps going.
+      code: |
+        #!/usr/bin/env bash
+        cd "$DEPLOY_DIR"
+        rm -rf ./build/*
+    right:
+      description: Strict mode on; a deliberate omission is documented where it happens.
+      code: |
+        #!/usr/bin/env bash
+        set -euo pipefail
+        cd "$DEPLOY_DIR"
+        rm -rf ./build/*
+    reason: >
+      Without errexit a failed step (here a `cd` into a missing directory) is silently
+      followed by the next one, which may be destructive in the wrong place. Without
+      nounset a typo'd variable expands to empty; without pipefail a pipeline reports only
+      the last command's status. An undocumented omission reads as an oversight to the
+      next maintainer.
+
+  - id: sh-pipeline-exit-status
+    topic: Error handling
+    severity: blocker
+    lintable: false
+    sources: ["improvements#37 (2026-11-04, 2026-11-20, 2026-11-23)", "improvements#31"]
+    principle: >
+      A pipeline's exit status must reflect the step that actually failed. Under
+      `pipefail`, don't pipe a producer into an early-exiting consumer (`grep -q`,
+      `head`): if the producer is still writing when the consumer exits, it dies of
+      SIGPIPE and the pipeline can report 141 even though the match succeeded. In a
+      script that deliberately runs without `pipefail`, don't read the pipeline's status
+      as the producer's — a failing producer is hidden behind the consumer's status.
+    wrong:
+      description: >
+        Under pipefail, `grep -q` exits on the first match; whenever the producer still
+        has output pending it gets SIGPIPE and the `if` takes the "not found" branch.
+      code: |
+        set -o pipefail
+        if list_units | grep -q "^my-service"; then restart; fi
+    right:
+      description: Capture the producer's output first, then match on it.
+      code: |
+        set -o pipefail
+        units=$(list_units)            # a producer failure aborts here under set -e
+        if grep -q "^my-service" <<<"$units"; then restart; fi
+    reason: >
+      Both shapes turn a real condition into its opposite: a present match reads as
+      absent (exit 141), or an unreadable data source reads as "nothing found". The 141
+      case depends on timing and output size, so it passes small test inputs and fails
+      on production-sized output. Capturing first separates "the producer failed" from
+      "the match failed".
+
+  - id: sh-if-over-and-list
+    topic: Error handling
+    severity: blocker
+    lintable: false
+    sources: ["improvements#37 (2026-11-15)", "improvements#37 (2026-11-11)"]
+    principle: >
+      Never make `test && action` the last statement of a block — a function, a loop
+      body, a `{ }` group, or the script itself; write `if test; then action; fi`
+      there. Mid-block, `test && action` is fine because a later statement sets the
+      block's status (an explicit trailing `return 0` also makes it safe).
+    wrong:
+      description: >
+        When the last `[[ ]]` is false, the `&&` list returns 1, so the loop/function
+        returns 1 — and under `set -e` the caller exits; in `{ } | consumer` under
+        pipefail the pipeline fails.
+      code: |
+        set -e
+        notify_failures() {
+          for unit in "${units[@]}"; do
+            [[ $(state "$unit") == failed ]] && alert "$unit"
+          done
+        }
+        notify_failures   # exits the script if the last unit is healthy
+    right:
+      description: An `if` statement returns 0 when its condition is false.
+      code: |
+        notify_failures() {
+          for unit in "${units[@]}"; do
+            if [[ $(state "$unit") == failed ]]; then alert "$unit"; fi
+          done
+        }
+    reason: >
+      The `&&` form is exempt from errexit where it runs, but its non-zero status leaks
+      out as the enclosing block's return value, so the failure surfaces one level up,
+      depending on the data. The bug is silent in testing whenever the last element
+      happens to match.
+
+  - id: sh-errexit-off-in-conditions
+    topic: Error handling
+    severity: blocker
+    lintable: false
+    sources: ["improvements#37 (2026-11-11)", "improvements#37 (2026-11-12)"]
+    principle: >
+      `set -e` is ignored inside anything run as a condition — a function called in
+      `if f`, `f || x`, `f && x`, or `! f`. A function that may be called that way must
+      check its own steps explicitly (`step || return 1`) rather than rely on errexit.
+    wrong:
+      description: The function's `false` step doesn't stop it because it runs under `||`.
+      code: |
+        set -e
+        deploy() {
+          build            # fails...
+          push             # ...and this still runs
+        }
+        deploy || note "deploy failed"
+    right:
+      description: Propagate failures explicitly inside the function.
+      code: |
+        deploy() {
+          build || return 1
+          push || return 1
+        }
+        deploy || note "deploy failed"
+    reason: >
+      Wrapping a call in `|| handler` looks like it adds error handling, but it removes
+      errexit for every command inside the call, so later steps run after an earlier one
+      failed and the function may even return 0.
+
+  - id: sh-nounset-safe-expansions
+    topic: Error handling
+    severity: blocker
+    lintable: false
+    sources: ["improvements#37 (2026-11-06)", "improvements#31"]
+    principle: >
+      Under `set -u`, expand a value that may legitimately be absent with an explicit
+      default: `${var-}` or `${map[$key]-}` (any bash; associative arrays need bash 4+),
+      or test presence with `[[ -v map[$key] ]]` (bash 4.3+). When the script must run
+      on bash < 4.4 (e.g. macOS /bin/bash 3.2), also expand a possibly-empty array as
+      `${arr[@]+"${arr[@]}"}`, because there `"${arr[@]}"` on an empty array aborts.
+    wrong:
+      description: A lookup of a missing associative-array key aborts with "unbound variable".
+      code: |
+        set -u
+        declare -A seen=()
+        for id in "$@"; do
+          if [[ ${seen[$id]} == 1 ]]; then continue; fi
+          seen[$id]=1
+        done
+    right:
+      description: State that absence is expected with an empty default.
+      code: |
+        set -u
+        declare -A seen=()
+        for id in "$@"; do
+          if [[ ${seen[$id]-} == 1 ]]; then continue; fi
+          seen[$id]=1
+        done
+    reason: >
+      nounset exists to catch typos, not legitimately-absent values; tripping it on an
+      empty map or first iteration crashes the script on exactly the input the happy-path
+      test didn't cover. The explicit default keeps nounset's protection everywhere else.
+
+  - id: sh-no-blanket-error-suppression
+    topic: Error handling
+    severity: blocker
+    lintable: false
+    sources: ["improvements#37 (2026-11-06, 2026-11-11, 2026-11-23)"]
+    principle: >
+      Don't silence a command with `2>/dev/null` or `|| true` to skip an expected case.
+      Check the precondition you expect (file exists, unit present, permission held)
+      and let any other failure surface; a guard or monitor whose data source is
+      unreadable must report "unchecked/unknown", never "clean".
+    wrong:
+      description: An unreadable log and "no events" look identical, so the guard reports clean.
+      code: |
+        count=$(grep -c "oom" "$log_file" 2>/dev/null || true)
+        if [[ $count -eq 0 ]]; then echo "OK: no OOM events"; fi
+    right:
+      description: Check the expected precondition, report unknown when it fails, then count.
+      code: |
+        if [[ ! -r $log_file ]]; then
+          echo "SKIP: cannot read $log_file"; exit 2
+        fi
+        count=$(awk '/oom/ { n++ } END { print n + 0 }' "$log_file")
+    reason: >
+      Blanket suppression hides the failures you didn't anticipate along with the one you
+      did, and in a guard it turns "could not check" into a passing check. Watch for
+      tools that exit 0 and only warn on stderr when they can't read their source — check
+      their documented failure signal rather than trusting the exit code. Applies
+      `u-never-fail-silently` to the shell idioms that most often violate it.
+
+  - id: sh-quote-expansions
+    topic: Correctness
+    severity: blocker
+    lintable: true
+    sources: ["improvements#37 (2026-11-08)", "improvements#31"]
+    principle: >
+      Double-quote every variable and command-substitution expansion (`"$f"`,
+      `"$(cmd)"`, `"${arr[@]}"`) unless word splitting is the intent, which then gets a
+      comment. Run a shell linter (e.g. shellcheck) on every changed script.
+    wrong:
+      description: An unquoted path is split on spaces and glob-expanded.
+      code: |
+        rm -f $tmp_dir/$name
+    right:
+      description: Quoted expansions pass exactly one argument each.
+      code: |
+        rm -f "$tmp_dir/$name"
+    reason: >
+      Unquoted expansions break on spaces, empty values and glob characters — inputs that
+      rarely appear in tests and routinely appear in production (user-supplied names,
+      empty env vars). shellcheck catches this mechanically (SC2086).

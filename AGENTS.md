@@ -17,6 +17,8 @@ to keep context small:
 - `.vue` / `.js` files → `universal.yaml` + `packs/frontend-vue.yaml` + `packs/testing.yaml`
   + the active org profile
 - SQL / migrations → `universal.yaml` + `packs/database.yaml` + active org profile
+- bash scripts (`.sh`/`.bash`, or an extensionless file with a bash shebang) →
+  `universal.yaml` + `packs/shell.yaml`
 - always also load `packs/git.yaml` for commit/branch work and `packs/planning.yaml`
   when decomposing tasks
 

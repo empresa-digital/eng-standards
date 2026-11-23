@@ -31,7 +31,7 @@ REVIEWER = open("review/reviewer.md").read()
 # packs like testing). The org profile is appended in build_prompt.
 EXT = {
     "vue-": "vue", "db-": "sql", "infra-": "infra", "git-": "git",
-    "test-": "test", "plan-": "plan",
+    "test-": "test", "plan-": "plan", "sh-": "shell",
 }  # default .go
 PACKS_FOR = {
     "go": ["universal.yaml", "packs/backend-go.yaml"],
@@ -41,10 +41,11 @@ PACKS_FOR = {
     "git": ["universal.yaml", "packs/git.yaml"],
     "test": ["universal.yaml", "packs/backend-go.yaml", "packs/testing.yaml"],
     "plan": ["universal.yaml", "packs/planning.yaml"],
+    "shell": ["universal.yaml", "packs/shell.yaml"],
 }
 # Code-fence language label per kind (cosmetic; the rule id is what's asserted).
 FENCE = {"go": "go", "vue": "vue", "sql": "sql", "infra": "yaml", "git": "sh",
-         "test": "go", "plan": "md"}
+         "test": "go", "plan": "md", "shell": "sh"}
 # Rules whose violation can't be seen in an isolated snippet — need surrounding repo.
 REPO_CONTEXT = {
     "u-reuse-before-adding",
