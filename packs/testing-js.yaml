@@ -15,7 +15,10 @@ rules:
     sources: ["pr-review#481"]
     principle: >
       Prefer an explicit setup function each test calls (e.g. setupPage(), setupComponent())
-      over a beforeEach hook, so setup is visible in the test and can take per-case overrides.
+      over a beforeEach hook, so the arrange step is visible in the test body. The setup
+      function is the arrange step only; per-case DATA comes from the table row
+      (see test-table-each-rows), so call it as setupPage(test.props) or with fields of
+      the row, never with ad-hoc arguments invented per test.
     wrong:
       description: A beforeEach hides setup and forces one shape on every test.
       code: |
@@ -29,13 +32,104 @@ rules:
         function setupPage(opts = {}) {
           mountPage({ role: 'admin', ...opts })
         }
-        it('hides the admin panel for sellers', () => {
-          setupPage({ role: 'seller' })
+        it.each([
+          { name: 'hides the admin panel for sellers', role: 'seller', expectPanel: false },
+          { name: 'shows the admin panel for admins', role: 'admin', expectPanel: true },
+        ])('$name', (test) => {
+          setupPage({ role: test.role })
           // ...
         })
     reason: >
       A beforeEach hides the arrange step from the test body and forces one shared setup
-      on every case; an explicit setup function keeps setup visible and lets each test
-      pass arguments for its scenario. This is a JS/TS-ecosystem rule: it does not apply to
-      Go, where table-driven tests are idiomatic. Relatedly, keep assertions out of
+      on every case; an explicit setup function keeps setup visible. It does NOT replace
+      the table: the row carries the scenario data and the setup function only applies it,
+      so maintainability comes from adding rows, not from growing the setup signature. This
+      is a JS/TS-ecosystem rule: it does not apply to Go, where table-driven tests are
+      idiomatic and no setup helper is needed. Relatedly, keep assertions out of
       intercept/spy callbacks — capture values into a variable and assert them at the end.
+
+  - id: test-table-each-rows
+    topic: Structure
+    severity: blocker
+    lintable: false
+    sources: ["pr-review#698", vini-style]
+    principle: >
+      The JS/TS shape of a table-driven test (test-data-driven-tests, test-extend-handler-table)
+      is `it.each([...rows])('$name', async (test) => { ... })`: an array of plain objects,
+      each with a `name` and the per-case inputs and expectations, consumed by ONE test body.
+      Add a new scenario as a new row, not as a sibling `it`. Do not use the tagged-template
+      table form of `it.each` (columns become positional and unlabeled).
+    wrong:
+      description: One `it` per scenario, each re-arranging the same mock and re-asserting the same shape.
+      code: |
+        it('maps the deliverables keeping their order', async () => {
+          api.get.mockResolvedValue({ data: { id: 42, deliverables: [{ title: 'Report' }] } })
+          expect((await getDiligence(1, 42)).deliverables).toEqual([{ title: 'Report' }])
+        })
+        it('throws when the response has no deliverables', async () => {
+          api.get.mockResolvedValue({ data: { id: 42, deliverables: undefined } })
+          await expect(getDiligence(1, 42)).rejects.toThrow(TypeError)
+        })
+    right:
+      description: >
+        One table; every scenario is a row with a name; the body has a single expected-error
+        branch and then the linear happy-path assertions.
+      code: |
+        it.each([
+          {
+            name: 'maps the deliverables keeping their order',
+            deliverables: [{ title: 'Report' }, { title: 'Risk opinion' }],
+            expected: [{ title: 'Report' }, { title: 'Risk opinion' }],
+          },
+          {
+            name: 'throws when the response has no deliverables',
+            deliverables: undefined,
+            expectedError: TypeError,
+          },
+        ])('$name', async (test) => {
+          api.get.mockResolvedValue({ data: { id: 42, deliverables: test.deliverables } })
+
+          const request = getDiligence(1, 42)
+
+          if (test.expectedError) {
+            await expect(request).rejects.toThrow(test.expectedError)
+            return
+          }
+          expect((await request).deliverables).toEqual(test.expected)
+        })
+    reason: >
+      `it.each` with an array of named objects is the idiomatic Jest/Vitest way to write the
+      table tests this library already requires everywhere else: setup lives once, a missing
+      scenario is a missing row, and the format is uniform across the codebase. `$name`
+      interpolation gives each row a readable test title. The tagged-template form hides
+      which column each value belongs to once rows grow, so it is excluded.
+
+  - id: test-table-row-variable-not-destructured
+    topic: Structure
+    severity: nit
+    lintable: false
+    sources: [vini-style]
+    principle: >
+      Name the row parameter of `it.each` `test` and read fields as `test.field`; do not
+      destructure the row in the parameter list.
+    wrong:
+      description: Destructuring hides that a value came from the table row.
+      code: |
+        ])('$name', async ({ deliverables, expected, expectedError }) => {
+          api.get.mockResolvedValue({ data: { deliverables } })
+          expect(result).toEqual(expected)
+        })
+    right:
+      description: Every row value is read through the row object, so its origin is visible at the use site.
+      code: |
+        ])('$name', async (test) => {
+          api.get.mockResolvedValue({ data: { deliverables: test.deliverables } })
+          expect(result).toEqual(test.expected)
+        })
+    reason: >
+      Rows grow to many fields and bodies to many lines; `test.expected` tells the reader at
+      the use site that the value is a table input, exactly like `test.expectStatus` in the
+      Go tables, without scrolling back to the signature. `test` is short and is the same
+      name used in the Go tables. Caveat: `test` is also a Vitest/Jest export; keep
+      importing `it` (not `test`) in files that use this naming so the parameter does not
+      shadow the framework function.
