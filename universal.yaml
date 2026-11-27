@@ -255,10 +255,7 @@ rules:
       params, query string and body and turning them into domain types. Never extract that
       translation into a helper shared by two different routes, even when both routes parse
       the same fields today. Legitimate reuse lives BELOW the translation, in the services
-      and domain functions the handlers call after parsing. This rule covers only INBOUND
-      request translation across route handlers; a helper that builds outbound HTTP client
-      headers or auth for calls to one external API is the same concept changing together
-      and is governed by u-keep-incidental-duplication-inline, which allows sharing it.
+      and domain functions the handlers call after parsing.
     wrong:
       description: >
         Two handlers share a helper that parses params and body for both routes, so the
@@ -328,9 +325,7 @@ rules:
       `*fiber.Ctx`) or a route's request DTO and is called from two or more different route
       handlers to extract params, query or body. Ask for the parsing to be inlined into each
       handler and for the shared part to move into a service or domain function that takes
-      already-typed arguments. Do not flag shared outbound client helpers (headers, auth,
-      base URL for one external provider): that case belongs to
-      u-keep-incidental-duplication-inline.
+      already-typed arguments.
 
   - id: u-invariants-in-business-layer
     topic: Architecture
