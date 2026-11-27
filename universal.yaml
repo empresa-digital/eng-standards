@@ -74,12 +74,13 @@ rules:
     sources: ["improvements#26", "improvements#37"]
     ideals: [block-hasty-new-abstractions]
     principle: >
-      Write Everything at most Twice: two copies of the same thing are fine; extract on the
-      THIRD copy, not before. Extract a shared variable, helper, ConfigMap or lib only when
-      there are three or more sites AND they express the SAME concept and are meant to
-      change together. When sites merely look alike right now but change for independent
-      reasons — two SQL queries, two translation strings, two ad-hoc DTOs — keep them inline
-      even past three, so one can evolve without silently dragging the other.
+      Write Everything at Twice: two copies of the same thing are fine; it only becomes useful
+      to extract it on the THIRD copy, not before. Extract a shared variable, helper,
+      ConfigMap or lib only when there are three or more sites AND they express the SAME
+      concept and are meant to change together. When sites merely look alike right now but
+      change for independent reasons — two SQL queries, two translation strings, two ad-hoc
+      DTOs — keep them inline even past three, so one can evolve without silently dragging the
+      other.
     wrong:
       description: Hoist a fragment shared by two queries that will diverge independently.
       code: |
@@ -98,7 +99,8 @@ rules:
       genuinely shared concept, but don't manufacture a shared one out of surface similarity.
     solution: >
       Before extracting, count the sites and ask whether they change for the same reason.
-      Two sites → inline, whatever the reason. Three or more AND same concept → share it.
+      Two sites → inline, whatever the reason. Three or more AND same concept consider
+      sharing it (you are not forced to).
       Same shape by coincidence (queries, translations, one-off DTOs) → inline it.
       Reviewers: do not flag a value or snippet that appears exactly twice as a
       duplication finding.
