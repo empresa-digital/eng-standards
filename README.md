@@ -138,7 +138,7 @@ fine outcome.
   breaking it.
 - **State who is posting, and where the finding came from.** Every comment opens by naming
   its origin, so readers can tell a problem the AI found on its own from one a human raised:
-  either "Posted by <agent name> (AI agent) during an automated review run" or "Posted by
+  either "Posted by <agent name> (AI agent) during an automated run" or "Posted by
   <agent name> (AI agent), reporting a problem raised by <human>". The human's name is
   enough; no human sign-off on the text is required. Prefer posting from the agent's own
   GitHub account when it has one. Never let an AI-written report read as if a human wrote
