@@ -136,10 +136,14 @@ fine outcome.
   developer responsible for the task, and post only with their opinion attached. Without
   this check, models tend to ask for a rule to be loosened exactly when they are the ones
   breaking it.
-- **State who is posting.** AI-authored reports are expected and welcome, but the comment must
-  correctly identify the agent that posted it (for example, "Posted by <agent name> (AI agent)
-  during an automated review run"). Never let an AI-written report read as if a human wrote
-  it.
+- **State who is posting, and where the finding came from.** Every comment opens by naming
+  its origin, so readers can tell a problem the AI found on its own from one a human raised:
+  either "Posted by <agent name> (AI agent) during an automated run" or "Posted by
+  <agent name> (AI agent), reporting a problem raised by <human>". The human's name is
+  enough; no human sign-off on the text is required. Prefer posting from the agent's own
+  GitHub account when it has one. Never let an AI-written report read as if a human wrote
+  it, and never attribute a finding to a human who did not raise it: a report filed from a
+  human's account by an agent acting on its own reads as that human's opinion.
 
 ### Setup (distribution)
 
